@@ -11,7 +11,7 @@ function createWindow() {
   const window = new BrowserWindow({
     width: 400,
     height: 400,
-    x: Math.floor((width - 200) / 2), // Position around the center
+    x: Math.floor(width), // Position around the center
     y: 10, // At the top of the screen
     //  change to false to use AppBar
     frame: true,
@@ -33,7 +33,7 @@ function createWindow() {
 
   window.setAlwaysOnTop(true, 'screen-saver');
   // window.webContents.openDevTools();
-  window.setContentProtection(true);
+  // window.setContentProtection(true);
   const port = process.env.PORT || 5421;
   const url = isDev ? `http://localhost:${port}` : join(__dirname, './dist-vite/index.html');
 
@@ -60,16 +60,16 @@ function createWindow() {
 
     switch (direction) {
       case 'left':
-        window.setBounds({ x: x - step, y, width: 400, height: 400 });
+        window.setBounds({ x: x - step, y });
         break;
       case 'right':
-        window.setBounds({ x: x + step, y, width: 400, height: 400 });
+        window.setBounds({ x: x + step, y });
         break;
       case 'up':
-        window.setBounds({ x, y: y - step, width: 400, height: 400 });
+        window.setBounds({ x, y: y - step });
         break;
       case 'down':
-        window.setBounds({ x, y: y + step, width: 400, height: 400 });
+        window.setBounds({ x, y: y + step });
         break;
 
       default:
