@@ -2,10 +2,11 @@
 /* eslint-disable react/no-array-index-key */
 /* eslint-disable react/react-in-jsx-scope */
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square, Headphones } from 'lucide-react';
+import { Send, Square, Headphones, Camera } from 'lucide-react';
 import axios from 'axios';
 import OpenAI from 'openai';
 import MarkdownPreview from '@uiw/react-markdown-preview';
+import { createWorker } from 'tesseract.js';
 import TypingEffect from './TypingEffect';
 import TypeLoading from './TypeLoading';
 import { getResponse, runAssistant, sendMessage } from '../services';
@@ -19,9 +20,10 @@ export default function ChatUI() {
   const [input, setInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
-  const [useAssistantAPI, setUseAssistantAPI] = useState(true); // Toggle between APIs
+  const [useAssistantAPI, setUseAssistantAPI] = useState(false); // Toggle between APIs
   const [isRecordingSystem, setIsRecordingSystem] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [isProcessingScreenshot, setIsProcessingScreenshot] = useState(false);
   
   // Refs for aborting streams
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -76,6 +78,95 @@ export default function ChatUI() {
     }
     console.log('✅ [RENDERER] window.Main is now available!');
     return true;
+  };
+
+  const performOCR = async (imageDataUrl: string) => {
+    console.log('🔍 Performing OCR...');
+    setIsProcessingScreenshot(true);
+    
+    try {
+      const worker = await createWorker('eng');
+      const ret = await worker.recognize(imageDataUrl);
+      console.log('OCR Text:', ret.data.text);
+      
+      await worker.terminate();
+      
+      if (ret.data.text && ret.data.text.trim()) {
+        const text = `Screenshot Text:\n${ret.data.text}`;
+        // setInput(text); // Optional: set input if you want user to edit
+        handleSend(text);
+      } else {
+        console.log('⚠️ No text found in screenshot');
+      }
+    } catch (error) {
+      console.error('OCR Error:', error);
+    } finally {
+      setIsProcessingScreenshot(false);
+    }
+  };
+
+  const takeScreenshot = async () => {
+    console.log('📸 Taking screenshot...');
+    if (isProcessingScreenshot) return;
+    
+    setIsProcessingScreenshot(true);
+
+    try {
+      // Get sources
+      const sources = await window.Main.getDesktopSources();
+      // Find the primary screen (usually the first one or one with 'Screen 1' or similar)
+      const screenSource = sources.find((s: any) => s.name.includes('Screen') || s.name.includes('Entire Screen')) || sources[0];
+      
+      if (!screenSource) {
+        console.error('No screen source found');
+        setIsProcessingScreenshot(false);
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: screenSource.id,
+            minWidth: 1280,
+            maxWidth: 4000,
+            minHeight: 720,
+            maxHeight: 4000
+          }
+        } as any
+      });
+
+      // Create a video element to capture the frame
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.onloadedmetadata = async () => {
+        video.play();
+        
+        // Create canvas to draw the frame
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          // Stop the stream
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Convert to image data URL
+          const imageDataUrl = canvas.toDataURL('image/png');
+          
+          // Perform OCR
+          await performOCR(imageDataUrl);
+        } else {
+          setIsProcessingScreenshot(false);
+        }
+      };
+    } catch (error) {
+      console.error('Error taking screenshot:', error);
+      setIsProcessingScreenshot(false);
+    }
   };
 
   const startSystemRecording = async () => {
@@ -174,11 +265,70 @@ export default function ChatUI() {
     }
   };
 
-  // Keyboard shortcuts for recording
+  // Debug: Check what's available on window
+  useEffect(() => {
+    console.log('🔍 [DEBUG] Checking window object...');
+    console.log('🔍 [DEBUG] window.Main:', window.Main);
+    console.log('🔍 [DEBUG] window keys:', Object.keys(window).filter(k => k.includes('Main') || k.includes('ipc')));
+    console.log('🔍 [DEBUG] typeof window.Main:', typeof window.Main);
+  }, []);
+
+  // Keyboard shortcuts for recording and window movement
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts if user is typing in an input or textarea
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+      console.log('🔑 [DEBUG] Key pressed:', e.key, 'Target:', (e.target as HTMLElement).tagName);
+      
+      const isTyping = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName);
+      console.log('🔑 [DEBUG] isTyping:', isTyping);
+      
+      // Arrow keys for window movement - work even when typing
+      if (e.key === 'ArrowUp') {
+        console.log('🔑 [DEBUG] ArrowUp detected, calling handleDirection');
+        console.log('🔑 [DEBUG] window.Main exists?', !!window.Main);
+        console.log('🔑 [DEBUG] window.Main.handleDirection exists?', !!window.Main?.handleDirection);
+        e.preventDefault();
+        if (window.Main?.handleDirection) {
+          window.Main.handleDirection('up');
+          console.log('⌨️ [RENDERER] Arrow Up - Moving window up');
+        } else {
+          console.error('❌ [RENDERER] window.Main.handleDirection is not available. Preload script may not be loaded.');
+        }
+        return;
+      } else if (e.key === 'ArrowDown') {
+        console.log('🔑 [DEBUG] ArrowDown detected, calling handleDirection');
+        e.preventDefault();
+        if (window.Main?.handleDirection) {
+          window.Main.handleDirection('down');
+          console.log('⌨️ [RENDERER] Arrow Down - Moving window down');
+        } else {
+          console.error('❌ [RENDERER] window.Main.handleDirection is not available.');
+        }
+        return;
+      } else if (e.key === 'ArrowLeft') {
+        console.log('🔑 [DEBUG] ArrowLeft detected, calling handleDirection');
+        e.preventDefault();
+        if (window.Main?.handleDirection) {
+          window.Main.handleDirection('left');
+          console.log('⌨️ [RENDERER] Arrow Left - Moving window left');
+        } else {
+          console.error('❌ [RENDERER] window.Main.handleDirection is not available.');
+        }
+        return;
+      } else if (e.key === 'ArrowRight') {
+        console.log('🔑 [DEBUG] ArrowRight detected, calling handleDirection');
+        e.preventDefault();
+        if (window.Main?.handleDirection) {
+          window.Main.handleDirection('right');
+          console.log('⌨️ [RENDERER] Arrow Right - Moving window right');
+        } else {
+          console.error('❌ [RENDERER] window.Main.handleDirection is not available.');
+        }
+        return;
+      }
+
+      // Don't trigger letter shortcuts if user is typing in an input or textarea
+      if (isTyping) {
+        console.log('🔑 [DEBUG] Blocking letter shortcuts - user is typing');
         return;
       }
 
@@ -192,12 +342,22 @@ export default function ChatUI() {
           console.log('⌨️ [RENDERER] "P" pressed - Stopping recording');
           stopSystemRecording();
         }
+      } else if (e.key.toLowerCase() === 'q') {
+        if (!isProcessingScreenshot) {
+          console.log('⌨️ [RENDERER] "Q" pressed - Taking screenshot');
+          takeScreenshot();
+        }
       }
     };
 
+    console.log('🔑 [DEBUG] Keyboard event listener registered');
+    console.log('🔑 [DEBUG] window.Main available at mount?', !!window.Main);
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRecordingSystem, isInitializing]); // Re-bind when state changes to ensure fresh closure access if needed, though functions rely on refs/state setters which are stable or handled.
+    return () => {
+      console.log('🔑 [DEBUG] Keyboard event listener removed');
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isRecordingSystem, isInitializing, isProcessingScreenshot]); 
 
   // Save messages to localStorage whenever they change
   useEffect(() => {
@@ -487,6 +647,14 @@ export default function ChatUI() {
             </div>
           </div>
         )}
+        {isProcessingScreenshot && (
+          <div className="absolute -top-10 left-0 right-0 flex justify-center">
+            <div className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium animate-pulse flex items-center gap-2">
+              <span className="w-2 h-2 bg-white rounded-full"></span>
+              Processing Screenshot...
+            </div>
+          </div>
+        )}
         <input
           type="text"
           className="flex-1 bg-transparent border-none outline-none p-2 cursor-default"
@@ -508,9 +676,19 @@ export default function ChatUI() {
             className={`p-3 hover:opacity-80 rounded-lg cursor-default ${
               isRecordingSystem ? 'bg-red-500 animate-pulse' : 'bg-gray-900'
             }`}
-            title="Listen to System Audio"
+            title="Listen to Microphone"
           >
             <Headphones size={20} color={isRecordingSystem ? 'white' : 'white'} />
+          </button>
+
+          <button
+            onClick={takeScreenshot}
+            className={`p-3 hover:opacity-80 rounded-lg cursor-default ${
+              isProcessingScreenshot ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'
+            }`}
+            title="Take Screenshot (Q)"
+          >
+            <Camera size={20} color={isProcessingScreenshot ? 'white' : 'white'} />
           </button>
         </div>
       </div>

@@ -12,7 +12,7 @@ async function createWindow() {
   const { width } = screen.getPrimaryDisplay().workAreaSize;
   // Create the browser window.
   const window = new BrowserWindow({
-    width: 500,
+    width: 700,
     height: 700,
     x: Math.floor(width), // Position around the center
     y: 10, // At the top of the screen
@@ -23,7 +23,7 @@ async function createWindow() {
     fullscreenable: false,
 
     transparent: false, // Enable transparency
-    vibrancy: 'hud', // macOS glass effect
+    vibrancy: 'tooltips', // macOS glass effect
     visualEffectState: 'active',
     backgroundColor: '#00000000', // Start fully transparent
 
@@ -56,7 +56,7 @@ async function createWindow() {
   window.setAlwaysOnTop(true, 'screen-saver');
   // Hide window from screen capture/sharing
   window.setContentProtection(true);
-  window.webContents.openDevTools();
+  // window.webContents.openDevTools();
   
   // Check permissions on macOS
   if (process.platform === 'darwin') {
