@@ -1,25 +1,31 @@
 // Native
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Packages
-import { BrowserWindow, app, ipcMain, IpcMainEvent, nativeTheme, screen } from 'electron';
+import { BrowserWindow, app, ipcMain, IpcMainEvent, nativeTheme, screen, desktopCapturer, systemPreferences } from 'electron';
 import isDev from 'electron-is-dev';
 
-function createWindow() {
+async function createWindow() {
   const { width } = screen.getPrimaryDisplay().workAreaSize;
   // Create the browser window.
   const window = new BrowserWindow({
-    width: 400,
-    height: 400,
+    width: 500,
+    height: 700,
     x: Math.floor(width), // Position around the center
     y: 10, // At the top of the screen
     //  change to false to use AppBar
     frame: true,
     show: true,
-    resizable: false,
+    resizable: false, // Allow resizing since it's bigger
     fullscreenable: false,
 
-    transparent: false, // Transparent background
+    transparent: false, // Enable transparency
+    vibrancy: 'hud', // macOS glass effect
+    visualEffectState: 'active',
+    backgroundColor: '#00000000', // Start fully transparent
 
     alwaysOnTop: false, // Can toggle this later,
     hasShadow: true,
@@ -27,12 +33,55 @@ function createWindow() {
     roundedCorners: true,
     focusable: true,
     webPreferences: {
-      preload: join(__dirname, 'preload.js')
+      preload: join(__dirname, 'preload.cjs'), // Use .cjs
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false, // Disable sandbox in development
+      webSecurity: false // Disable web security in development
     }
   });
 
+  const preloadPath = join(__dirname, 'preload.cjs');
+  console.log('🔧 [MAIN] Preload path:', preloadPath);
+  console.log('🔧 [MAIN] __dirname:', __dirname);
+  
+  // Check if preload file exists
+  const fs = await import('fs');
+  const preloadExists = fs.existsSync(preloadPath);
+  console.log('🔧 [MAIN] Preload file exists:', preloadExists);
+  if (!preloadExists) {
+    console.error('❌ [MAIN] Preload file NOT FOUND at:', preloadPath);
+  }
+
   window.setAlwaysOnTop(true, 'screen-saver');
-  // window.webContents.openDevTools();
+  // Hide window from screen capture/sharing
+  window.setContentProtection(true);
+  window.webContents.openDevTools();
+  
+  // Check permissions on macOS
+  if (process.platform === 'darwin') {
+    const micStatus = systemPreferences.getMediaAccessStatus('microphone');
+    console.log('🎤 [MAIN] Microphone access status:', micStatus);
+    
+    const screenStatus = systemPreferences.getMediaAccessStatus('screen');
+    console.log('🖥️ [MAIN] Screen recording access status:', screenStatus);
+
+    if (micStatus !== 'granted') {
+      // This might trigger a system prompt
+      systemPreferences.askForMediaAccess('microphone').then((granted: boolean) => {
+        console.log('🎤 [MAIN] Microphone access requested. Granted:', granted);
+      });
+    }
+  }
+
+  // Log when preload script should have loaded
+  window.webContents.on('did-finish-load', () => {
+    console.log('✅ [MAIN] Page finished loading');
+  });
+  
+  window.webContents.on('preload-error', (_event, preloadPath, error) => {
+    console.error('❌ [MAIN] Preload error:', { preloadPath, error });
+  });
   // window.setContentProtection(true);
   const port = process.env.PORT || 5421;
   const url = isDev ? `http://localhost:${port}` : join(__dirname, './dist-vite/index.html');
@@ -47,7 +96,7 @@ function createWindow() {
   // Open the DevTools.
   // window.webContents.openDevTools();
 
-  ipcMain.on('move-window', (event, direction) => {
+  ipcMain.on('move-window', (_event, direction) => {
     if (!window) return;
     // console.log(direction);
     // window.setBounds({ x: 0, y: 0, width: 400, height: 400 });
@@ -76,46 +125,6 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('capture-screen', async (_, { x, y, width: captureWidth, height }) => {
-    console.log(x, y, captureWidth, height);
-
-    // const sources = await desktopCapturer.getSources({ types: ['screen'] });
-    // for (const source of sources) {
-    //   try {
-    //     const stream = await navigator.mediaDevices.getUserMedia({
-    //       video: {
-    //         mandatory: {
-    //           chromeMediaSource: 'desktop',
-    //           chromeMediaSourceId: source.id,
-    //           minWidth: width,
-    //           minHeight: height,
-    //           maxWidth: width,
-    //           maxHeight: height
-    //         }
-    //       }
-    //     });
-    //     const video = document.createElement('video');
-    //     video.srcObject = stream;
-    //     await new Promise((resolve) => (video.onloadedmetadata = resolve));
-    //     video.play();
-    //     const canvas = document.createElement('canvas');
-    //     canvas.width = width;
-    //     canvas.height = height;
-    //     const ctx = canvas.getContext('2d');
-    //     ctx.drawImage(video, x, y, width, height, 0, 0, width, height);
-    //     const dataURL = canvas.toDataURL('image/png');
-    //     const base64Data = dataURL.replace(/^data:image\/png;base64,/, '');
-    //     // Save Image
-    //     const filePath = path.join(app.getPath('desktop'), 'screenshot.png');
-    //     fs.writeFileSync(filePath, base64Data, 'base64');
-    //     return filePath;
-    //   } catch (error) {
-    //     console.error('Error capturing screen:', error);
-    //     return null;
-    //   }
-    // }
-  });
-
   // For AppBar
   ipcMain.on('minimize', () => {
     // eslint-disable-next-line no-unused-expressions
@@ -133,6 +142,26 @@ function createWindow() {
 
   nativeTheme.themeSource = 'dark';
 }
+
+ipcMain.handle('get-desktop-sources', async () => {
+  console.log('🎯 [MAIN] get-desktop-sources handler called');
+  try {
+    console.log('📡 [MAIN] Requesting desktop sources with types: [screen]');
+    const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+    console.log(`✅ [MAIN] Found ${sources.length} sources:`, sources.map(s => ({ id: s.id, name: s.name })));
+    
+    const result = sources.map(source => ({
+      id: source.id,
+      name: source.name
+    }));
+    
+    console.log('📤 [MAIN] Returning sources to renderer:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ [MAIN] Error getting desktop sources:', error);
+    throw error;
+  }
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
