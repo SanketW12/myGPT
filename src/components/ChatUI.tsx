@@ -531,6 +531,11 @@ export default function ChatUI() {
         model: 'gpt-4o-mini', // or 'gpt-4' for better quality
         messages: conversationMessages,
         stream: true,
+        max_tokens: 50,
+        temperature: 0,
+        top_p: 0.1,
+        presence_penalty: 0,
+        frequency_penalty: 0
       }, { signal: controller.signal });
 
       let assistantMessage = '';
