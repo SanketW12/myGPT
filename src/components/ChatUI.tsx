@@ -893,14 +893,14 @@ export default function ChatUI() {
             <Camera size={20} color={isProcessingScreenshot ? 'white' : 'white'} />
           </button> */}
 
-          <button
+          {/* <button
             onClick={() => setIsAreaCaptureMode(true)}
             className={`p-3 hover:opacity-80 rounded-lg cursor-default ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'
               }`}
             title="Area Screenshot (S)"
           >
             <Crop size={20} color={isAreaCaptureMode ? 'white' : 'white'} />
-          </button>
+          </button> */}
 
           {/* <button
             onClick={handleDownloadScreenshot}
