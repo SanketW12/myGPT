@@ -108,7 +108,7 @@ export default function ChatUI() {
       });
 
       const systemPrompt = import.meta.env.VITE_SYSTEM_PROMPT ||
-        "Give response in humanized format, question may be related to javascript, react or web development";
+        "Give response in humanized format, question may be related to javascript, react or web development.";
 
       const stream = await openai.chat.completions.create({
         model: model, // or 'gpt-4' for better quality
@@ -125,7 +125,7 @@ export default function ChatUI() {
           {
             role: 'user',
             content: [
-              { type: 'text', text: 'This is question of coding or maybe a problem statement, please provide the solution' },
+              { type: 'text', text: 'This is question of coding or maybe a problem statement, please provide the solution or shortest eplanation possible' },
               {
                 type: 'image_url',
                 image_url: {
