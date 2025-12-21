@@ -19,15 +19,15 @@ async function createWindow() {
     //  change to false to use AppBar
     frame: true,
     show: true,
-    resizable: false, // Allow resizing since it's bigger
-    fullscreenable: false,
+    resizable: false,
+    fullscreenable: true,
 
     transparent: false, // Enable transparency
-    vibrancy: 'tooltips', // macOS glass effect
+    vibrancy: 'tooltip', // macOS glass effect
     visualEffectState: 'active',
     backgroundColor: '#00000000', // Start fully transparent
 
-    alwaysOnTop: false, // Can toggle this later,
+    alwaysOnTop: true,
     hasShadow: true,
     enableLargerThanScreen: true,
     roundedCorners: true,
@@ -140,22 +140,50 @@ async function createWindow() {
     window.close();
   });
 
+  ipcMain.on('set-capture-mode', (_event, isCaptureMode) => {
+    if (!window) return;
+    console.log(`🖥️ [MAIN] set-capture-mode: ${isCaptureMode} (Window size preserved)`);
+    try {
+      if (isCaptureMode) {
+        // Keep window same size, just ensure it's on top for the selection process
+        window.setAlwaysOnTop(true, 'screen-saver');
+        console.log("✅ [MAIN] Window kept at current size for selection");
+      } else {
+        // Keep it always on top even after capture
+        window.setAlwaysOnTop(true, 'screen-saver');
+        console.log("✅ [MAIN] Window capture mode finished");
+      }
+    } catch (err) {
+      console.error("❌ [MAIN] Error changing window capture mode:", err);
+    }
+  });
+
   nativeTheme.themeSource = 'dark';
 }
 
-ipcMain.handle('get-desktop-sources', async () => {
-  console.log('🎯 [MAIN] get-desktop-sources handler called');
+ipcMain.handle('get-desktop-sources', async (_event, options?: { fetchThumbnail?: boolean; thumbnailSize?: Electron.Size }) => {
+  console.log('🎯 [MAIN] get-desktop-sources handler called with options:', options);
   try {
     console.log('📡 [MAIN] Requesting desktop sources with types: [screen]');
-    const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+    // Use larger thumbnail size if not specified but fetching thumbnail
+    const thumbnailSize = options?.thumbnailSize || { width: 1080, height: 720 };
+    const fetchThumbnail = options?.fetchThumbnail || false;
+
+    const sources = await desktopCapturer.getSources({ 
+      types: ['screen', 'window'],
+      thumbnailSize: fetchThumbnail ? thumbnailSize : { width: 0, height: 0 }
+    });
+    
     console.log(`✅ [MAIN] Found ${sources.length} sources:`, sources.map(s => ({ id: s.id, name: s.name })));
     
     const result = sources.map(source => ({
       id: source.id,
-      name: source.name
+      name: source.name,
+      // Only include thumbnail if requested to avoid overhead
+      thumbnail: fetchThumbnail ? source.thumbnail.toDataURL() : undefined
     }));
     
-    console.log('📤 [MAIN] Returning sources to renderer:', result);
+    console.log(`📤 [MAIN] Returning sources to renderer. Thumbnails included: ${fetchThumbnail}`);
     return result;
   } catch (error) {
     console.error('❌ [MAIN] Error getting desktop sources:', error);

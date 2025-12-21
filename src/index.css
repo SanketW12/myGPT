@@ -4,6 +4,7 @@
 /* For AppBar */
 .draggable {
     -webkit-user-select: none;
+    user-select: none;
     -webkit-app-region: drag;
   }
 
@@ -19,4 +20,12 @@
   .root {
     @apply min-h-screen dark:bg-slate-900 dark:text-gray-200;
   }
+}
+
+.selecto-selection {
+    background: rgba(59, 130, 246, 0.2) !important;
+    border: 2px solid #3b82f6 !important;
+    position: absolute;
+    z-index: 10001;
+    pointer-events: none;
 }

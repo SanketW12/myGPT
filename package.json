@@ -46,6 +46,7 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-media-recorder": "^1.7.1",
+    "react-selecto": "^1.26.3",
     "tesseract.js": "^6.0.1",
     "vite": "^5.0.0",
     "vite-plugin-electron": "^0.29.0",

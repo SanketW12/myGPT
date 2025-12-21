@@ -1,7 +1,48 @@
-// Use CommonJS require syntax for Electron preload scripts
 const { ipcRenderer, contextBridge } = require('electron');
 
-console.log('🚀 [PRELOAD] Preload script starting...');
+// Use a simple any cast for global state in preload
+const myGlobal = globalThis as any;
+
+console.log('🚀 [PRELOAD] Preload script starting (CJS Edition)...');
+
+const api = {
+  sendMessage: (message: string) => {
+    ipcRenderer.send('message', message);
+  },
+  Minimize: () => {
+    ipcRenderer.send('minimize');
+  },
+  Maximize: () => {
+    ipcRenderer.send('maximize');
+  },
+  Close: () => {
+    ipcRenderer.send('close');
+  },
+  removeLoading: () => {
+    if (myGlobal._removeLoading) myGlobal._removeLoading();
+  },
+  handleDirection: (direction: string) => {
+    ipcRenderer.send('move-window', direction);
+  },
+  on: (channel: string, callback: (data: any) => void) => {
+    ipcRenderer.on(channel, (_: any, data: any) => callback(data));
+  },
+  getDesktopSources: async (options?: { fetchThumbnail?: boolean; thumbnailSize?: { width: number; height: number } }) => {
+    console.log('🔌 [PRELOAD] getDesktopSources called via Main API');
+    return ipcRenderer.invoke('get-desktop-sources', options);
+  },
+  setCaptureMode: (isCaptureMode: boolean) => {
+    ipcRenderer.send('set-capture-mode', isCaptureMode);
+  }
+};
+
+try {
+  contextBridge.exposeInMainWorld('Main', api);
+  contextBridge.exposeInMainWorld('ipcRenderer', ipcRenderer);
+  console.log('✅ [PRELOAD] Main API exposed successfully');
+} catch (e) {
+  console.error('❌ [PRELOAD] Failed to expose API:', e);
+}
 
 // --- Loading Screen Logic ---
 function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']) {
@@ -17,19 +58,6 @@ function domReady(condition: DocumentReadyState[] = ['complete', 'interactive'])
     }
   });
 }
-
-const safeDOM = {
-  append(parent: HTMLElement, child: HTMLElement) {
-    if (!Array.from(parent.children).find(e => e === child)) {
-      return parent.appendChild(child);
-    }
-  },
-  remove(parent: HTMLElement, child: HTMLElement) {
-    if (parent && Array.from(parent.children).find(e => e === child)) {
-      return parent.removeChild(child);
-    }
-  },
-};
 
 function useLoading() {
   const className = `loaders-css__square-spin`;
@@ -69,80 +97,25 @@ function useLoading() {
   oDiv.innerHTML = `<div class="${className}"><div></div></div>`;
 
   return {
-    appendLoading() {
-      safeDOM.append(document.head, oStyle);
-      safeDOM.append(document.body, oDiv);
+    appendLoading: function() {
+      document.head.appendChild(oStyle);
+      document.body.appendChild(oDiv);
     },
-    removeLoading() {
-      safeDOM.remove(document.head, oStyle);
-      safeDOM.remove(document.body, oDiv);
+    removeLoading: function() {
+      if (document.head.contains(oStyle)) document.head.removeChild(oStyle);
+      if (document.body.contains(oDiv)) document.body.removeChild(oDiv);
     },
   };
 }
 
-const { appendLoading, removeLoading } = useLoading();
-domReady().then(appendLoading);
-
-window.onmessage = (ev) => {
-  ev.data.payload === 'removeLoading' && removeLoading();
-};
-
-setTimeout(removeLoading, 4999);
-
-// --- API Exposure ---
-
-const api = {
-  /**
-   * Here you can expose functions to the renderer process
-   * so they can interact with the main (electron) side
-   * without security problems.
-   *
-   * The function below can accessed using `window.Main.sayHello`
-   */
-  sendMessage: (message: string) => {
-    ipcRenderer.send('message', message);
-  },
-  /**
-    Here function for AppBar
-   */
-  Minimize: () => {
-    ipcRenderer.send('minimize');
-  },
-  Maximize: () => {
-    ipcRenderer.send('maximize');
-  },
-  Close: () => {
-    ipcRenderer.send('close');
-  },
-  removeLoading: () => {
-    removeLoading();
-  },
-  handleDirection: (direction: string) => {
-    ipcRenderer.send('move-window', direction);
-  },
-  /**
-   * Provide an easier way to listen to events
-   */
-  on: (channel: string, callback: (data: any) => void) => {
-    ipcRenderer.on(channel, (_: any, data: any) => callback(data));
-  },
-  getDesktopSources: async () => {
-    console.log('🔌 [PRELOAD] getDesktopSources called, invoking IPC...');
-    try {
-      const result = await ipcRenderer.invoke('get-desktop-sources');
-      console.log('📥 [PRELOAD] Received sources from main:', result);
-      return result;
-    } catch (error) {
-      console.error('❌ [PRELOAD] Error invoking get-desktop-sources:', error);
-      throw error;
-    }
-  }
-};
-
-console.log('🎯 [PRELOAD] About to expose Main API to window...');
-console.log('🔍 [PRELOAD] API object:', Object.keys(api));
-contextBridge.exposeInMainWorld('Main', api);
-contextBridge.exposeInMainWorld('ipcRenderer', ipcRenderer);
-console.log('✅ [PRELOAD] Main API exposed to window!');
-console.log('🏁 [PRELOAD] Preload script completed successfully!');
-console.log('🏁 [PRELOAD] Preload script completed successfully!');
+domReady().then(() => {
+  const { appendLoading, removeLoading } = useLoading();
+  myGlobal._removeLoading = removeLoading;
+  appendLoading();
+  
+  window.onmessage = (ev) => {
+    ev.data.payload === 'removeLoading' && removeLoading();
+  };
+  
+  setTimeout(removeLoading, 1000);
+});

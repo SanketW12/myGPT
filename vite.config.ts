@@ -1,12 +1,10 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react';
 import { UserConfig, ConfigEnv } from 'vite';
-import { rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
 import electron from 'vite-plugin-electron';
-import renderer from 'vite-plugin-electron-renderer';
 import pkg from './package.json';
 
 
@@ -20,7 +18,10 @@ const buildElectron = (isDev: boolean) => ({
   minify: !isDev,
   outDir: join(root, 'dist-electron'),
   rollupOptions: {
-    external: Object.keys(pkg.dependencies || {})
+    external: [
+      'electron',
+      ...Object.keys(pkg.dependencies || {})
+    ]
   }
 });
 
@@ -30,44 +31,26 @@ function plugins(isDev: boolean) {
     tailwindcss(),
     electron([
       {
-        // Main-Process entry file of the Electron App.
+        // Preload-Process
         entry: join(root, 'electron/preload.ts'),
         onstart(options) {
-          // Notify the Renderer-Process to reload the page when the Preload-Scripts build is complete,
-          // instead of restarting the entire Electron App.
           options.reload();
         },
         vite: {
           build: {
             ...buildElectron(isDev),
+            lib: false, // Disable lib mode for preload to avoid ESM wrapping
             rollupOptions: {
               ...buildElectron(isDev).rollupOptions,
+              input: join(root, 'electron/preload.ts'),
               output: {
-                format: 'cjs' as const, // MUST be CommonJS
-                entryFileNames: '[name].cjs' // Use .cjs extension
+                format: 'cjs',
+                entryFileNames: 'preload.cjs',
+                inlineDynamicImports: true,
+                exports: 'none' // No exports for preload script
               }
             }
-          },
-          plugins: [
-            {
-              name: 'fix-preload-cjs',
-              closeBundle() {
-                const preloadPath = join(root, 'dist-electron/preload.cjs');
-                try {
-                  if (existsSync(preloadPath)) {
-                    let content = readFileSync(preloadPath, 'utf8');
-                    if (content.includes('export default')) {
-                      content = content.replace(/^export default .+;$/m, '');
-                      writeFileSync(preloadPath, content);
-                      console.log('✅ Fixed preload.cjs (removed export default)');
-                    }
-                  }
-                } catch (e) {
-                  console.warn('⚠️ Could not fix preload.cjs:', e);
-                }
-              }
-            }
-          ]
+          }
         }
       },
       {
