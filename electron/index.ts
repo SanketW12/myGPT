@@ -54,6 +54,7 @@ async function createWindow() {
   }
 
   window.setAlwaysOnTop(true, 'screen-saver');
+  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   // Hide window from screen capture/sharing
   window.setContentProtection(true);
   // window.webContents.openDevTools();
