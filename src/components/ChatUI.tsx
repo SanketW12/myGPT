@@ -107,8 +107,8 @@ export default function ChatUI() {
         dangerouslyAllowBrowser: true
       });
 
-      const systemPrompt = import.meta.env.VITE_SYSTEM_PROMPT ||
-        "Give response in humanized format, question may be related to javascript, react or web development.";
+      const systemPrompt = (import.meta.env.VITE_SYSTEM_PROMPT ||
+        "Give response in humanized format, question may be related to javascript, react or web development.") + "\n\nFor each question, generate:\n\nMust-say points (non-negotiable)\n\nGood-to-say points\n\nBonus points (to stand out)\n\nExample (React performance question)\n\nMust: memoization, reconciliation\n\nGood: virtualization\n\nBonus: profiling + real incident";
 
       const stream = await openai.chat.completions.create({
         model: model, // or 'gpt-4' for better quality
@@ -546,7 +546,8 @@ export default function ChatUI() {
       // Create a streaming run using OpenAI SDK
       console.log('🌊 Creating stream...');
       const stream = openai.beta.threads.runs.stream(threadId, {
-        assistant_id: assistantId
+        assistant_id: assistantId,
+        additional_instructions: "\n\nFor each question, generate:\n\nMust-say points (non-negotiable)\n\nGood-to-say points\n\nBonus points (to stand out)\n\nExample (React performance question)\n\nMust: memoization, reconciliation\n\nGood: virtualization\n\nBonus: profiling + real incident"
       });
       streamRef.current = stream;
 
@@ -639,8 +640,8 @@ export default function ChatUI() {
       });
 
       // System prompt - Add your assistant's instructions here
-      const systemPrompt = import.meta.env.VITE_SYSTEM_PROMPT ||
-        "You are a helpful AI assistant. Be concise, friendly, and accurate in your responses.";
+      const systemPrompt = (import.meta.env.VITE_SYSTEM_PROMPT ||
+        "You are a helpful AI assistant. Be concise, friendly, and accurate in your responses.") + "\n\nFor each question, generate:\n\nMust-say points (non-negotiable)\n\nGood-to-say points\n\nBonus points (to stand out)\n\nExample (React performance question)\n\nMust: memoization, reconciliation\n\nGood: virtualization\n\nBonus: profiling + real incident";
 
       // Build conversation history with system message
       const conversationMessages = [
