@@ -5,7 +5,16 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Packages
-import { BrowserWindow, app, ipcMain, IpcMainEvent, nativeTheme, screen, desktopCapturer, systemPreferences } from 'electron';
+import {
+  BrowserWindow,
+  app,
+  ipcMain,
+  IpcMainEvent,
+  nativeTheme,
+  screen,
+  desktopCapturer,
+  systemPreferences
+} from 'electron';
 import isDev from 'electron-is-dev';
 
 async function createWindow() {
@@ -44,7 +53,7 @@ async function createWindow() {
   const preloadPath = join(__dirname, 'preload.cjs');
   console.log('🔧 [MAIN] Preload path:', preloadPath);
   console.log('🔧 [MAIN] __dirname:', __dirname);
-  
+
   // Check if preload file exists
   const fs = await import('fs');
   const preloadExists = fs.existsSync(preloadPath);
@@ -58,12 +67,12 @@ async function createWindow() {
   // Hide window from screen capture/sharing
   window.setContentProtection(true);
   // window.webContents.openDevTools();
-  
+
   // Check permissions on macOS
   if (process.platform === 'darwin') {
     const micStatus = systemPreferences.getMediaAccessStatus('microphone');
     console.log('🎤 [MAIN] Microphone access status:', micStatus);
-    
+
     const screenStatus = systemPreferences.getMediaAccessStatus('screen');
     console.log('🖥️ [MAIN] Screen recording access status:', screenStatus);
 
@@ -79,7 +88,7 @@ async function createWindow() {
   window.webContents.on('did-finish-load', () => {
     console.log('✅ [MAIN] Page finished loading');
   });
-  
+
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
     console.error('❌ [MAIN] Preload error:', { preloadPath, error });
   });
@@ -148,49 +157,55 @@ async function createWindow() {
       if (isCaptureMode) {
         // Keep window same size, just ensure it's on top for the selection process
         window.setAlwaysOnTop(true, 'screen-saver');
-        console.log("✅ [MAIN] Window kept at current size for selection");
+        console.log('✅ [MAIN] Window kept at current size for selection');
       } else {
         // Keep it always on top even after capture
         window.setAlwaysOnTop(true, 'screen-saver');
-        console.log("✅ [MAIN] Window capture mode finished");
+        console.log('✅ [MAIN] Window capture mode finished');
       }
     } catch (err) {
-      console.error("❌ [MAIN] Error changing window capture mode:", err);
+      console.error('❌ [MAIN] Error changing window capture mode:', err);
     }
   });
 
   nativeTheme.themeSource = 'dark';
 }
 
-ipcMain.handle('get-desktop-sources', async (_event, options?: { fetchThumbnail?: boolean; thumbnailSize?: Electron.Size }) => {
-  console.log('🎯 [MAIN] get-desktop-sources handler called with options:', options);
-  try {
-    console.log('📡 [MAIN] Requesting desktop sources with types: [screen]');
-    // Use larger thumbnail size if not specified but fetching thumbnail
-    const thumbnailSize = options?.thumbnailSize || { width: 1080, height: 720 };
-    const fetchThumbnail = options?.fetchThumbnail || false;
+ipcMain.handle(
+  'get-desktop-sources',
+  async (_event, options?: { fetchThumbnail?: boolean; thumbnailSize?: Electron.Size }) => {
+    console.log('🎯 [MAIN] get-desktop-sources handler called with options:', options);
+    try {
+      console.log('📡 [MAIN] Requesting desktop sources with types: [screen]');
+      // Use larger thumbnail size if not specified but fetching thumbnail
+      const thumbnailSize = options?.thumbnailSize || { width: 1080, height: 720 };
+      const fetchThumbnail = options?.fetchThumbnail || false;
 
-    const sources = await desktopCapturer.getSources({ 
-      types: ['screen', 'window'],
-      thumbnailSize: fetchThumbnail ? thumbnailSize : { width: 0, height: 0 }
-    });
-    
-    console.log(`✅ [MAIN] Found ${sources.length} sources:`, sources.map(s => ({ id: s.id, name: s.name })));
-    
-    const result = sources.map(source => ({
-      id: source.id,
-      name: source.name,
-      // Only include thumbnail if requested to avoid overhead
-      thumbnail: fetchThumbnail ? source.thumbnail.toDataURL() : undefined
-    }));
-    
-    console.log(`📤 [MAIN] Returning sources to renderer. Thumbnails included: ${fetchThumbnail}`);
-    return result;
-  } catch (error) {
-    console.error('❌ [MAIN] Error getting desktop sources:', error);
-    throw error;
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: fetchThumbnail ? thumbnailSize : { width: 0, height: 0 }
+      });
+
+      console.log(
+        `✅ [MAIN] Found ${sources.length} sources:`,
+        sources.map((s) => ({ id: s.id, name: s.name }))
+      );
+
+      const result = sources.map((source) => ({
+        id: source.id,
+        name: source.name,
+        // Only include thumbnail if requested to avoid overhead
+        thumbnail: fetchThumbnail ? source.thumbnail.toDataURL() : undefined
+      }));
+
+      console.log(`📤 [MAIN] Returning sources to renderer. Thumbnails included: ${fetchThumbnail}`);
+      return result;
+    } catch (error) {
+      console.error('❌ [MAIN] Error getting desktop sources:', error);
+      throw error;
+    }
   }
-});
+);
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
