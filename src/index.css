@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
+@import "tailwindcss";
+
+/* For AppBar */
+.draggable {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-app-region: drag;
+  }
+
+.undraggable {
+    -webkit-app-region: no-drag;
+  }
+
+@layer base {
+  code {
+    @apply mx-2 rounded bg-gray-200 px-1 py-0.5 dark:bg-gray-700;
+  }
+
+  .root {
+    @apply min-h-screen dark:bg-slate-900 dark:text-gray-200;
+  }
+}
+
+.selecto-selection {
+    background: rgba(59, 130, 246, 0.2) !important;
+    border: 2px solid #3b82f6 !important;
+    position: absolute;
+    z-index: 10001;
+    pointer-events: none;
+}
