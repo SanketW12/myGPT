@@ -1,37 +1,71 @@
-# Vite + React + Typescript + Electron - Starter
+# myGPT (Vite + React + Electron + OpenAI)
 
-https://github.com/AleBL/vite-reactts-electron-starter/assets/26389226/2697ab5c-b6c5-4c28-ab40-1a237e12cf8d
+A desktop AI assistant application built with Electron, React, Vite, and the OpenAI API.
 
-> It is a simple starter template without unnecessary packages.
+## Prerequisites
 
-This very simple Starter template, utilizes [Vite](https://github.com/vitejs/vite), [Tailwind](https://tailwindcss.com/), [React](https://reactjs.org/), [Typescript](https://www.typescriptlang.org/) and [Electron](https://electronjs.org/).
+1. **Node.js**: Make sure you have Node.js installed (v18+ recommended).
+2. **Yarn** or **NPM**: Yarn is primarily used in this project.
+3. **OpenAI API Key**: You will need an API key from OpenAI and an Assistant/Thread configuration.
 
-By default, the React framework is used for the interface, but you can easily use any other framework such as Vue, Preact, Angular, Svelte or anything else.
+## Environment Variables
 
-> Vite is framework agnostic
+Before starting the app, ensure you have a `.env` file in the root of the project setup with the following variables. (An example of the `.env` provided):
 
-## Installation
+```env
+PORT=3000
+VITE_API_KEY=sk-proj-...
+VITE_THREAD_ID=thread_...
+VITE_ASSISTANT_ID=asst_...
+```
 
-Clone this repo and install all dependencies  
-`yarn` or `npm install`
+## How to Start the App
 
-## Development
+Follow these steps to run the application in a development environment:
 
-`yarn dev` or `npm run dev`
+### 1. Install Dependencies
 
-## Build
+Open a terminal in the project directory and run:
 
-`yarn build` or `npm run build`
+```bash
+yarn install
+```
 
-## Publish
+_(or `npm install`)_
 
-`yarn dist` or `npm run dist`
+### 2. Start the Vite React Server
 
-## More advanced templates  
+In the same terminal, start the React frontend:
 
-If you are looking for more advanced templates than this, please go to one of the following links (these are some other links out of the **[awesome-vite](https://github.com/vitejs/awesome-vite)** repo) or you can help me make this template better 🙂  
+```bash
+yarn dev
+```
 
-Links: 
-- [vite-react-electron](https://github.com/caoxiemeihao/vite-react-electron)
-- [electron-vite-react](https://github.com/twstyled/electron-vite-react)
-- [vite-electron-esbuild-starter](https://github.com/jctaoo/vite-electron-esbuild-starter)
+_(or `npm run dev`)_
+
+### 3. Start the Electron App
+
+**Open a second terminal window** in the project directory and run:
+
+```bash
+yarn dev:electron
+```
+
+_(or `npm run dev:electron`)_
+
+The Electron desktop application will launch and load the React interface!
+
+## Building for Production
+
+To create an executable for your operating system:
+
+```bash
+# Build for Mac
+yarn dist:mac
+
+# Build for Windows
+yarn dist:win
+
+# Build for Linux
+yarn dist:linux
+```
