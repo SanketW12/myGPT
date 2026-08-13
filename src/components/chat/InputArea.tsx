@@ -1,5 +1,5 @@
 import React from 'react';
-import { Send, Square, Headphones, Crop, Mic } from 'lucide-react';
+import { Send, Square, Crop, Mic } from 'lucide-react';
 
 interface InputAreaProps {
     input: string;
@@ -10,9 +10,11 @@ interface InputAreaProps {
     isRecording: boolean;
     startRecording: () => void;
     stopRecording: () => void;
-    isLive: boolean;
-    startLive: () => void;
-    stopLive: () => void;
+    isRealtime: boolean;
+    isListening?: boolean;
+    realtimeStatus?: string;
+    startRealtime: () => void;
+    stopRealtime: () => void;
     isProcessingScreenshot: boolean;
     isAreaCaptureMode: boolean;
     onEnterAreaCaptureMode: () => void;
@@ -27,16 +29,33 @@ export const InputArea: React.FC<InputAreaProps> = ({
     isRecording,
     startRecording,
     stopRecording,
-    isLive,
-    startLive,
-    stopLive,
+    isRealtime,
+    isListening = false,
+    realtimeStatus,
+    startRealtime,
+    stopRealtime,
     isProcessingScreenshot,
     isAreaCaptureMode,
     onEnterAreaCaptureMode
 }) => {
     return (
-        <div className="p-4 border-t border-gray-700 flex items-center bg-gray-800 relative">
-            {isRecording && (
+        <div className="p-4 border-t border-gray-700/50 flex items-center bg-gray-800/50 backdrop-blur-sm relative">
+            {(isRealtime || realtimeStatus) && (
+                <div className="absolute -top-10 left-0 right-0 flex justify-center">
+                    <div className={`${isRealtime && isListening ? 'bg-green-600 animate-pulse' : isRealtime ? 'bg-amber-600' : 'bg-amber-600'} text-white px-4 py-1 rounded-full text-sm font-medium flex items-center gap-2 max-w-[90%]`}>
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${isListening ? 'bg-white' : 'bg-white/50'}`}></span>
+                        <span className="truncate">
+                            {realtimeStatus || (isListening ? 'Listening ON' : 'Listening OFF')}
+                        </span>
+                        {isRealtime && (
+                            <span className="text-[10px] uppercase tracking-wide opacity-80 shrink-0">
+                                {isListening ? 'ON' : 'OFF'}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+            {isRecording && !isRealtime && (
                 <div className="absolute -top-10 left-0 right-0 flex justify-center">
                     <div className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-medium animate-pulse flex items-center gap-2">
                         <span className="w-2 h-2 bg-white rounded-full"></span>
@@ -71,20 +90,20 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     {loading ? <Square size={20} fill="white" /> : <Send size={20} color="white" />}
                 </button>
 
-                {/* Legacy Recording Button - keeping as is per user instruction implies adding new one, not replacing */}
+                {/* Legacy recording button hidden for now
                 <button
                     onClick={isRecording ? stopRecording : startRecording}
                     className={`p-3 hover:opacity-80 rounded-lg transition-colors ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-900'}`}
-                    title="Record Audio & Transcribe (L)"
+                    title={isRecording ? 'Stop Mic (P)' : 'Record Audio & Transcribe (K)'}
                 >
                     <Headphones size={20} color="white" />
                 </button>
+                */}
 
-                {/* New Live Transcription Button */}
                 <button
-                    onClick={isLive ? stopLive : startLive}
-                    className={`p-3 hover:opacity-80 rounded-lg transition-colors ${isLive ? 'bg-green-500 animate-pulse' : 'bg-gray-900'}`}
-                    title="Live Transcription"
+                    onClick={isRealtime ? stopRealtime : startRealtime}
+                    className={`p-3 hover:opacity-80 rounded-lg transition-colors ${isRealtime ? 'bg-green-500 animate-pulse' : 'bg-gray-900'}`}
+                    title={isRealtime ? 'Stop Realtime (click only)' : 'Start Realtime (Space or click)'}
                 >
                     <Mic size={20} color="white" />
                 </button>

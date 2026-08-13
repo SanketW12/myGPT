@@ -13,12 +13,17 @@
   }
 
 @layer base {
+  html,
+  body {
+    background: transparent !important;
+  }
+
   code {
     @apply mx-2 rounded bg-gray-200 px-1 py-0.5 dark:bg-gray-700;
   }
 
   .root {
-    @apply min-h-screen dark:bg-slate-900 dark:text-gray-200;
+    @apply min-h-screen bg-transparent text-gray-200;
   }
 }
 

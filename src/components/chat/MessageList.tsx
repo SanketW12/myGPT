@@ -34,8 +34,8 @@ export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading
                     )}
                     <div
                         className={`max-w-[85%] rounded-2xl px-5 py-3.5 shadow-md backdrop-blur-sm ${msg.role === 'user'
-                            ? 'bg-blue-600 text-white rounded-br-none'
-                            : 'bg-gray-800/80 text-gray-100 border border-gray-700/50 rounded-bl-none'
+                            ? 'bg-blue-600/70 text-white rounded-br-none'
+                            : 'bg-gray-800/70 text-gray-100 border border-gray-700/50 rounded-bl-none'
                             }`}
                     >
                         {msg.role === 'user' ? (
@@ -71,7 +71,7 @@ export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading
 
             {loading && (
                 <div className="flex justify-start animate-fade-in">
-                    <div className="bg-gray-800/80 rounded-2xl rounded-bl-none px-4 py-3 border border-gray-700/50 shadow-sm">
+                    <div className="bg-gray-800/70 rounded-2xl rounded-bl-none px-4 py-3 border border-gray-700/50 shadow-sm backdrop-blur-sm">
                         <TypeLoading />
                     </div>
                 </div>

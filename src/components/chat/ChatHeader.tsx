@@ -14,7 +14,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     clearChat
 }) => {
     return (
-        <div className="p-3 border-b border-gray-700/50 bg-gray-800/50 flex justify-between items-center backdrop-blur-md sticky top-0 z-10">
+        <div className="p-3 border-b border-gray-700/50 bg-gray-800/40 flex justify-between items-center backdrop-blur-md sticky top-0 z-10">
             <div className="flex items-center gap-3">
                 <button
                     onClick={() => setUseAssistantAPI(!useAssistantAPI)}

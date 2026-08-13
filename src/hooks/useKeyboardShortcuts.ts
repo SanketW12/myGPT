@@ -5,10 +5,13 @@ interface UseKeyboardShortcutsProps {
   isInitializing: boolean;
   isProcessingScreenshot: boolean;
   isAreaCaptureMode: boolean;
+  isRealtime: boolean;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onTakeScreenshot: () => void;
   onEnterAreaCaptureMode: () => void;
+  onStartRealtime: () => void;
+  onToggleListening: () => void;
 }
 
 export const useKeyboardShortcuts = ({
@@ -16,27 +19,24 @@ export const useKeyboardShortcuts = ({
   isInitializing,
   isProcessingScreenshot,
   isAreaCaptureMode,
+  isRealtime,
   onStartRecording,
   onStopRecording,
   onTakeScreenshot,
-  onEnterAreaCaptureMode
+  onEnterAreaCaptureMode,
+  onStartRealtime,
+  onToggleListening
 }: UseKeyboardShortcutsProps) => {
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // console.log('🔑 [DEBUG] Key pressed:', e.key, 'Target:', (e.target as HTMLElement).tagName);
-
       const isTyping = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName);
-      
+
       // Window Movement (Arrow Keys)
       if (e.key.startsWith('Arrow')) {
         const direction = e.key.replace('Arrow', '').toLowerCase();
-        // console.log(`🔑 [DEBUG] Arrow${direction} detected`);
-        
         if (window.Main?.handleDirection) {
-           e.preventDefault();
-           window.Main.handleDirection(direction);
-           // console.log(`⌨️ [RENDERER] Arrow ${direction} - Moving window`);
+          e.preventDefault();
+          window.Main.handleDirection(direction);
         }
         return;
       }
@@ -46,25 +46,50 @@ export const useKeyboardShortcuts = ({
 
       const key = e.key.toLowerCase();
 
-      if (key === 'l') {
-        if (!isRecording && !isInitializing) {
-          console.log('⌨️ [RENDERER] "L" pressed - Starting recording');
+      // Old mic: K start, P stop
+      if (key === 'k') {
+        if (!isRecording && !isInitializing && !isRealtime) {
+          console.log('⌨️ [RENDERER] "K" pressed - Starting old mic');
           onStartRecording();
         }
-      } else if (key === 'p') {
+        return;
+      }
+
+      if (key === 'p') {
         if (isRecording) {
-            console.log('⌨️ [RENDERER] "P" pressed - Stopping recording');
-            onStopRecording();
+          console.log('⌨️ [RENDERER] "P" pressed - Stopping old mic');
+          onStopRecording();
         }
-      } else if (key === 'q') {
+        return;
+      }
+
+      // Realtime: Space starts session, or toggles listening ON/OFF while active.
+      // Full stop is mic-icon only.
+      if (e.code === 'Space' || key === ' ') {
+        e.preventDefault();
+        if (isInitializing || isRecording) return;
+        if (isRealtime) {
+          console.log('⌨️ [RENDERER] Space pressed - Toggle listening');
+          onToggleListening();
+        } else {
+          console.log('⌨️ [RENDERER] Space pressed - Starting Realtime');
+          onStartRealtime();
+        }
+        return;
+      }
+
+      if (key === 'q') {
         if (!isProcessingScreenshot) {
-            console.log('⌨️ [RENDERER] "Q" pressed - Taking screenshot');
-            onTakeScreenshot();
+          console.log('⌨️ [RENDERER] "Q" pressed - Taking screenshot');
+          onTakeScreenshot();
         }
-      } else if (key === 's') {
+        return;
+      }
+
+      if (key === 's') {
         if (!isAreaCaptureMode && !isProcessingScreenshot) {
-            console.log('⌨️ [RENDERER] "S" pressed - Entering area capture mode');
-            onEnterAreaCaptureMode();
+          console.log('⌨️ [RENDERER] "S" pressed - Entering area capture mode');
+          onEnterAreaCaptureMode();
         }
       }
     };
@@ -74,13 +99,16 @@ export const useKeyboardShortcuts = ({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [
-    isRecording, 
-    isInitializing, 
-    isProcessingScreenshot, 
-    isAreaCaptureMode, 
-    onStartRecording, 
-    onStopRecording, 
-    onTakeScreenshot, 
-    onEnterAreaCaptureMode
+    isRecording,
+    isInitializing,
+    isProcessingScreenshot,
+    isAreaCaptureMode,
+    isRealtime,
+    onStartRecording,
+    onStopRecording,
+    onTakeScreenshot,
+    onEnterAreaCaptureMode,
+    onStartRealtime,
+    onToggleListening
   ]);
 };

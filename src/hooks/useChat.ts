@@ -80,6 +80,8 @@ Answer length:
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const assistantPreviousResponseIdRef = useRef<string | null>(null);
+  const realtimeAssistantActiveRef = useRef(false);
+  const realtimeUserStreamingRef = useRef(false);
 
   useEffect(() => {
     localStorage.setItem('chatMessages', JSON.stringify(messages));
@@ -266,6 +268,60 @@ Answer length:
     }
   };
 
+  const addRealtimeUserMessage = useCallback((content: string) => {
+    if (!content.trim()) return;
+    realtimeUserStreamingRef.current = false;
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      const userMessage = { role: 'user', content: content.trim() };
+      if (last?.role === 'user') {
+        return [...prev.slice(0, -1), userMessage];
+      }
+      if (last?.role === 'assistant' && realtimeAssistantActiveRef.current) {
+        return [...prev.slice(0, -1), userMessage, last];
+      }
+      return [...prev, userMessage];
+    });
+  }, []);
+
+  const appendRealtimeUserDelta = useCallback((delta: string) => {
+    if (!delta) return;
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'user' && realtimeUserStreamingRef.current) {
+        return [...prev.slice(0, -1), { ...last, content: last.content + delta }];
+      }
+      realtimeUserStreamingRef.current = true;
+      return [...prev, { role: 'user', content: delta }];
+    });
+  }, []);
+
+  const markRealtimeThinking = useCallback(() => {
+    setLoading(true);
+  }, []);
+
+  const beginRealtimeAssistantTurn = useCallback(() => {
+    realtimeAssistantActiveRef.current = false;
+    realtimeUserStreamingRef.current = false;
+  }, []);
+
+  const appendRealtimeAssistantDelta = useCallback((delta: string) => {
+    if (!delta) return;
+    setLoading(false);
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'assistant' && realtimeAssistantActiveRef.current) {
+        return [...prev.slice(0, -1), { ...last, content: last.content + delta }];
+      }
+      realtimeAssistantActiveRef.current = true;
+      return [...prev, { role: 'assistant', content: delta }];
+    });
+  }, []);
+
+  const finishRealtimeAssistantTurn = useCallback(() => {
+    setLoading(false);
+  }, []);
+
   const handleSend = useCallback(
     async (text?: string) => {
       const messageText = text || input;
@@ -292,6 +348,13 @@ Answer length:
     handleSend,
     handleSendImage,
     stopGeneration,
-    clearChat
+    clearChat,
+    systemPrompt,
+    addRealtimeUserMessage,
+    appendRealtimeUserDelta,
+    markRealtimeThinking,
+    beginRealtimeAssistantTurn,
+    appendRealtimeAssistantDelta,
+    finishRealtimeAssistantTurn
   };
 };

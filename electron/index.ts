@@ -30,12 +30,8 @@ async function createWindow() {
     show: true,
     resizable: false,
     fullscreenable: true,
-
-    transparent: false, // Enable transparency
-    vibrancy: 'tooltip', // macOS glass effect
-    visualEffectState: 'active',
-    backgroundColor: '#ffffff', // Start fully transparent
-
+    transparent: true,
+    backgroundColor: '#00000000',
     alwaysOnTop: true,
     hasShadow: true,
     enableLargerThanScreen: true,
