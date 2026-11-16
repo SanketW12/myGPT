@@ -23,7 +23,7 @@
     "dev:electron": "npm run build:electron && electron .",
     "build": "npm run build:vite && npm run build:electron",
     "build:vite": "vite build",
-    "build:electron": "tsc -p electron",
+    "build:electron": "tsc -p electron && node -e \"if (process.platform === 'darwin') require('child_process').execSync('clang -O2 -framework Cocoa -framework IOKit electron/native/fn-listener.m -o dist-electron/fn-listener')\"",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",

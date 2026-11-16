@@ -32,40 +32,35 @@ export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading
                             />
                         </div>
                     )}
-                    <div
-                        className={`max-w-[85%] rounded-2xl px-5 py-3.5 shadow-md backdrop-blur-sm ${msg.role === 'user'
-                            ? 'bg-blue-600/70 text-white rounded-br-none'
-                            : 'bg-gray-800/70 text-gray-100 border border-gray-700/50 rounded-bl-none'
-                            }`}
-                    >
-                        {msg.role === 'user' ? (
-                            <div className="text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
-                                {msg.content}
-                            </div>
-                        ) : (
-                            <div className="markdown-container">
-                                {/* 
-                   If it's the last message and we are NOT loading anymore, 
-                   or if it's not the last message, just show Markdown. 
-                   If it IS the last message and we are loading, we might want streaming effect?
-                   Actually the original code just updated 'content' via streaming, relying on React re-render.
-                   Line 11 uses TypingEffect only if... wait let's check original.
-                */}
-                                <MarkdownPreview
-                                    source={msg.content}
-                                    style={{
-                                        backgroundColor: 'transparent',
-                                        color: 'inherit',
-                                        fontSize: '15px',
-                                        lineHeight: '1.6'
-                                    }}
-                                    wrapperElement={{
-                                        "data-color-mode": "dark"
-                                    }}
-                                />
-                            </div>
-                        )}
-                    </div>
+                    {(!msg.image || (msg.content && msg.content.trim().length > 0)) && (
+                        <div
+                            className={`max-w-[85%] rounded-2xl px-5 py-3.5 shadow-md backdrop-blur-sm ${msg.role === 'user'
+                                ? 'bg-blue-600/70 text-white rounded-br-none'
+                                : 'bg-gray-800/70 text-gray-100 border border-gray-700/50 rounded-bl-none'
+                                }`}
+                        >
+                            {msg.role === 'user' ? (
+                                <div className="text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
+                                    {msg.content}
+                                </div>
+                            ) : (
+                                <div className="markdown-container">
+                                    <MarkdownPreview
+                                        source={msg.content}
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            color: 'inherit',
+                                            fontSize: '15px',
+                                            lineHeight: '1.6'
+                                        }}
+                                        wrapperElement={{
+                                            "data-color-mode": "dark"
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             ))}
 

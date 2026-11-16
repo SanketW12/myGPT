@@ -85,6 +85,11 @@ export const useScreenshot = ({ onOCRComplete, onImageCaptured }: UseScreenshotP
 
           // Default behavior: Perform OCR
           await performOCR(imageDataUrl);
+          // Attach captured screenshot instead of auto-sending
+          if (onImageCaptured) {
+            onImageCaptured(imageDataUrl);
+          }
+          setIsProcessing(false);
         } else {
           setIsProcessing(false);
         }
@@ -93,7 +98,7 @@ export const useScreenshot = ({ onOCRComplete, onImageCaptured }: UseScreenshotP
       console.error('Error taking screenshot:', error);
       setIsProcessing(false);
     }
-  }, [isProcessing, performOCR]);
+  }, [isProcessing, performOCR, onImageCaptured]);
 
   const captureForDownload = useCallback(async () => {
     console.log('⬇️ Taking screenshot for download...');

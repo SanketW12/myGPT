@@ -1,8 +1,49 @@
 // Native
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+import { spawn, execSync, ChildProcess } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+let fnListenerProcess: ChildProcess | null = null;
+
+function startFnListener(win: BrowserWindow) {
+  if (process.platform !== 'darwin') return;
+
+  const binPath = join(__dirname, 'fn-listener');
+  const srcPath = join(__dirname, '../electron/native/fn-listener.m');
+
+  try {
+    if (!existsSync(binPath) && existsSync(srcPath)) {
+      console.log('🔨 [MAIN] Compiling fn-listener native helper...');
+      execSync(`clang -O2 -framework Cocoa -framework IOKit "${srcPath}" -o "${binPath}"`);
+      console.log('✅ [MAIN] fn-listener compiled successfully');
+    }
+
+    if (existsSync(binPath)) {
+      console.log('🚀 [MAIN] Spawning fn-listener process:', binPath);
+      fnListenerProcess = spawn(binPath, [], { stdio: ['ignore', 'pipe', 'ignore'] });
+
+      fnListenerProcess.stdout?.on('data', (data: Buffer) => {
+        const text = data.toString();
+        if (text.includes('FN_PRESS')) {
+          console.log('🎤 [MAIN] Fn key press detected, notifying renderer...');
+          win.webContents.send('fn-key-pressed');
+        }
+      });
+
+      fnListenerProcess.on('exit', (code, signal) => {
+        console.log(`⚠️ [MAIN] fn-listener exited with code: ${code}, signal: ${signal}`);
+        fnListenerProcess = null;
+      });
+    } else {
+      console.warn('⚠️ [MAIN] fn-listener binary not found at:', binPath);
+    }
+  } catch (err) {
+    console.error('❌ [MAIN] Error starting fn-listener:', err);
+  }
+}
 
 // Packages
 import {
@@ -19,16 +60,18 @@ import isDev from 'electron-is-dev';
 
 async function createWindow() {
   const { width } = screen.getPrimaryDisplay().workAreaSize;
+  const initialX = Math.max(20, Math.floor(width - 720));
   // Create the browser window.
   const window = new BrowserWindow({
     width: 700,
     height: 700,
-    x: Math.floor(width), // Position around the center
+    x: initialX, // Position around the right-center of screen
     y: 10, // At the top of the screen
-    //  change to false to use AppBar
-    frame: true,
+    frame: false,
     show: true,
-    resizable: false,
+    resizable: true, // Allow user to resize and reduce the window size
+    minWidth: 320,
+    minHeight: 350,
     fullscreenable: true,
     transparent: true,
     backgroundColor: '#00000000',
@@ -99,6 +142,9 @@ async function createWindow() {
     window?.loadFile(url);
   }
 
+  // Start Fn key hardware listener on macOS
+  startFnListener(window);
+
   // Open the DevTools.
   // window.webContents.openDevTools();
 
@@ -131,7 +177,7 @@ async function createWindow() {
     }
   });
 
-  // For AppBar
+  // For window controls & resizing
   ipcMain.on('minimize', () => {
     // eslint-disable-next-line no-unused-expressions
     window.isMinimized() ? window.restore() : window.minimize();
@@ -144,6 +190,54 @@ async function createWindow() {
 
   ipcMain.on('close', () => {
     window.close();
+  });
+
+  // Drag window via cursor movement
+  ipcMain.on('drag-window', (_event, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
+    if (!window) return;
+    const { x, y } = window.getBounds();
+    window.setPosition(Math.round(x + deltaX), Math.round(y + deltaY));
+  });
+
+  // Resize window by delta (e.g. from corner resize grip)
+  ipcMain.on('resize-window', (event, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
+    if (!window) return;
+    const { width: currentW, height: currentH } = window.getBounds();
+    const newWidth = Math.max(320, Math.round(currentW + deltaX));
+    const newHeight = Math.max(350, Math.round(currentH + deltaY));
+    window.setSize(newWidth, newHeight);
+    const isCompact = newWidth <= 450;
+    event?.sender?.send('window-size-changed', { isCompact, width: newWidth, height: newHeight });
+  });
+
+  // Explicitly set window dimensions
+  ipcMain.on('set-window-size', (event, { width: newW, height: newH }: { width: number; height: number }) => {
+    if (!window) return;
+    const w = Math.max(320, Math.round(newW));
+    const h = Math.max(350, Math.round(newH));
+    window.setSize(w, h);
+    const isCompact = w <= 450;
+    event?.sender?.send('window-size-changed', { isCompact, width: w, height: h });
+  });
+
+  // Toggle between standard (700x700) and compact reduced size (380x520)
+  let isCompact = false;
+  ipcMain.on('toggle-window-size', (event) => {
+    if (!window) return;
+    const bounds = window.getBounds();
+    if (bounds.width > 450) {
+      window.setSize(380, 520);
+      isCompact = true;
+    } else {
+      window.setSize(700, 700);
+      isCompact = false;
+    }
+    event?.sender?.send('window-size-changed', { isCompact, width: window.getBounds().width, height: window.getBounds().height });
+  });
+
+  ipcMain.handle('get-window-bounds', () => {
+    if (!window) return { width: 700, height: 700, x: 0, y: 0 };
+    return window.getBounds();
   });
 
   ipcMain.on('set-capture-mode', (_event, isCaptureMode) => {
@@ -221,6 +315,17 @@ app.whenReady().then(() => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+  if (fnListenerProcess) {
+    try {
+      fnListenerProcess.kill();
+    } catch {
+      // ignore
+    }
+    fnListenerProcess = null;
+  }
 });
 
 // let tray;

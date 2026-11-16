@@ -25,7 +25,11 @@ const api = {
     ipcRenderer.send('move-window', direction);
   },
   on: (channel: string, callback: (data: any) => void) => {
-    ipcRenderer.on(channel, (_: any, data: any) => callback(data));
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on(channel, listener);
+    return () => {
+      ipcRenderer.removeListener(channel, listener);
+    };
   },
   getDesktopSources: async (options?: { fetchThumbnail?: boolean; thumbnailSize?: { width: number; height: number } }) => {
     console.log('🔌 [PRELOAD] getDesktopSources called via Main API');
@@ -33,6 +37,21 @@ const api = {
   },
   setCaptureMode: (isCaptureMode: boolean) => {
     ipcRenderer.send('set-capture-mode', isCaptureMode);
+  },
+  dragWindow: (deltaX: number, deltaY: number) => {
+    ipcRenderer.send('drag-window', { deltaX, deltaY });
+  },
+  resizeWindow: (deltaX: number, deltaY: number) => {
+    ipcRenderer.send('resize-window', { deltaX, deltaY });
+  },
+  setWindowSize: (width: number, height: number) => {
+    ipcRenderer.send('set-window-size', { width, height });
+  },
+  toggleWindowSize: () => {
+    ipcRenderer.send('toggle-window-size');
+  },
+  getWindowBounds: async () => {
+    return ipcRenderer.invoke('get-window-bounds');
   }
 };
 

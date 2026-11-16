@@ -1,15 +1,18 @@
-import React from 'react';
-import { Send, Square, Crop, Mic } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { Send, Square, Crop, Mic, X, Trash2 } from 'lucide-react';
 
 interface InputAreaProps {
     input: string;
     setInput: (value: string) => void;
+    attachedImage?: string | null;
+    onRemoveAttachment?: () => void;
     handleSend: () => void;
     loading: boolean;
     stopGeneration: () => void;
     isRecording: boolean;
     startRecording: () => void;
     stopRecording: () => void;
+    isTranscribing?: boolean;
     isRealtime: boolean;
     isListening?: boolean;
     realtimeStatus?: string;
@@ -23,12 +26,15 @@ interface InputAreaProps {
 export const InputArea: React.FC<InputAreaProps> = ({
     input,
     setInput,
+    attachedImage,
+    onRemoveAttachment,
     handleSend,
     loading,
     stopGeneration,
     isRecording,
     startRecording,
     stopRecording,
+    isTranscribing = false,
     isRealtime,
     isListening = false,
     realtimeStatus,
@@ -38,8 +44,16 @@ export const InputArea: React.FC<InputAreaProps> = ({
     isAreaCaptureMode,
     onEnterAreaCaptureMode
 }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (attachedImage) {
+            inputRef.current?.focus();
+        }
+    }, [attachedImage]);
+
     return (
-        <div className="p-4 border-t border-gray-700/50 flex items-center bg-gray-800/50 backdrop-blur-sm relative">
+        <div className="border-t border-gray-700/50 flex flex-col bg-gray-800/50 backdrop-blur-sm relative">
             {(isRealtime || realtimeStatus) && (
                 <div className="absolute -top-10 left-0 right-0 flex justify-center">
                     <div className={`${isRealtime && isListening ? 'bg-green-600 animate-pulse' : isRealtime ? 'bg-amber-600' : 'bg-amber-600'} text-white px-4 py-1 rounded-full text-sm font-medium flex items-center gap-2 max-w-[90%]`}>
@@ -57,9 +71,17 @@ export const InputArea: React.FC<InputAreaProps> = ({
             )}
             {isRecording && !isRealtime && (
                 <div className="absolute -top-10 left-0 right-0 flex justify-center">
-                    <div className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-medium animate-pulse flex items-center gap-2">
+                    <div className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-medium animate-pulse flex items-center gap-2 shadow-lg">
                         <span className="w-2 h-2 bg-white rounded-full"></span>
-                        Listening to Microphone (Old)...
+                        Listening... (Press Shift or → to Send directly)
+                    </div>
+                </div>
+            )}
+            {isTranscribing && (
+                <div className="absolute -top-10 left-0 right-0 flex justify-center">
+                    <div className="bg-purple-600 text-white px-4 py-1 rounded-full text-sm font-medium animate-pulse flex items-center gap-2 shadow-lg">
+                        <span className="w-2 h-2 bg-white rounded-full"></span>
+                        Transcribing & Sending to chat...
                     </div>
                 </div>
             )}
@@ -72,49 +94,92 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 </div>
             )}
 
-            <input
-                type="text"
-                className="flex-1 bg-transparent border-none outline-none p-2 cursor-text text-white placeholder-gray-400"
-                placeholder="Type a message..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            />
+            {/* Attached Screenshot Preview */}
+            {attachedImage && (
+                <div className="px-3 sm:px-4 pt-2.5 pb-2 border-b border-gray-700/40 bg-gray-900/60 flex items-center justify-between gap-3 animate-fade-in">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="relative group shrink-0">
+                            <img
+                                src={attachedImage}
+                                alt="Attached Screenshot"
+                                className="h-14 sm:h-16 w-auto max-w-[120px] sm:max-w-[140px] object-cover rounded-lg border-2 border-blue-500/80 shadow-md group-hover:brightness-95 transition-all"
+                            />
+                            {onRemoveAttachment && (
+                                <button
+                                    type="button"
+                                    onClick={onRemoveAttachment}
+                                    className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full p-0.5 shadow-md transition-transform hover:scale-110"
+                                    title="Remove screenshot"
+                                >
+                                    <X size={12} strokeWidth={2.5} />
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-semibold text-blue-400 flex items-center gap-1.5 truncate">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                                Screenshot attached
+                            </span>
+                            <span className="text-[11px] text-gray-400 truncate mt-0.5">
+                                Add text context below and press Enter or Send
+                            </span>
+                        </div>
+                    </div>
+                    {onRemoveAttachment && (
+                        <button
+                            type="button"
+                            onClick={onRemoveAttachment}
+                            className="text-gray-400 hover:text-red-400 p-1.5 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-gray-800/80 transition-colors shrink-0"
+                            title="Discard screenshot attachment"
+                        >
+                            <Trash2 size={13} />
+                            <span className="hidden sm:inline">Remove</span>
+                        </button>
+                    )}
+                </div>
+            )}
 
-            <div className="flex gap-4">
-                <button
-                    onClick={loading ? stopGeneration : () => handleSend()}
-                    className={`p-3 hover:opacity-80 rounded-lg transition-colors ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
-                    title={loading ? "Stop Generating" : "Send Message"}
-                >
-                    {loading ? <Square size={20} fill="white" /> : <Send size={20} color="white" />}
-                </button>
+            {/* Input & Action Controls Row */}
+            <div className="p-3 sm:p-4 pr-6 sm:pr-7 flex items-center">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    className="flex-1 min-w-0 bg-transparent border-none outline-none p-2 cursor-text text-white placeholder-gray-400 text-sm"
+                    placeholder={
+                        attachedImage
+                            ? "Add text context for this screenshot (or press Enter to send)..."
+                            : "Type a message (Press shift  to speak / send, or ↓ / →)..."
+                    }
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                />
 
-                {/* Legacy recording button hidden for now
-                <button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    className={`p-3 hover:opacity-80 rounded-lg transition-colors ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-900'}`}
-                    title={isRecording ? 'Stop Mic (P)' : 'Record Audio & Transcribe (K)'}
-                >
-                    <Headphones size={20} color="white" />
-                </button>
-                */}
+                <div className="flex gap-2 shrink-0">
+                    <button
+                        onClick={loading ? stopGeneration : () => handleSend()}
+                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
+                        title={loading ? "Stop Generating" : attachedImage ? "Send Screenshot & Message" : "Send Message"}
+                    >
+                        {loading ? <Square size={18} fill="white" /> : <Send size={18} color="white" />}
+                    </button>
 
-                <button
-                    onClick={isRealtime ? stopRealtime : startRealtime}
-                    className={`p-3 hover:opacity-80 rounded-lg transition-colors ${isRealtime ? 'bg-green-500 animate-pulse' : 'bg-gray-900'}`}
-                    title={isRealtime ? 'Stop Realtime (click only)' : 'Start Realtime (Space or click)'}
-                >
-                    <Mic size={20} color="white" />
-                </button>
+                    <button
+                        onClick={isRealtime ? stopRealtime : startRealtime}
+                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${isRealtime ? 'bg-green-500 animate-pulse' : 'bg-gray-900'}`}
+                        title={isRealtime ? 'Stop Realtime (click only)' : 'Start Realtime (Space or click)'}
+                    >
+                        <Mic size={18} color="white" />
+                    </button>
 
-                <button
-                    onClick={onEnterAreaCaptureMode}
-                    className={`p-3 hover:opacity-80 rounded-lg transition-colors ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
-                    title="Area Screenshot (S)"
-                >
-                    <Crop size={20} color="white" />
-                </button>
+                    <button
+                        onClick={onEnterAreaCaptureMode}
+                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
+                        title="Area Screenshot (S)"
+                    >
+                        <Crop size={18} color="white" />
+                    </button>
+                </div>
             </div>
         </div>
     );

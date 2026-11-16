@@ -38,19 +38,16 @@ const floatTo16BitPCM = (input: Float32Array) => {
   return buffer;
 };
 
-// Keep Realtime instructions short — long prompts slow first-token latency
+// Build instructions for live incoming voice session
 const buildRealtimeInstructions = (instructions: string) => {
-  const trimmed = instructions.trim();
-  // Prefer a compact spoken/chat style over the full interview template
-  const compact = trimmed.length > 600 ? `${trimmed.slice(0, 600)}…` : trimmed;
-  return `${compact}
+  return `${instructions.trim()}
 
-You are in a live voice→text session.
-Rules for speed:
+### LIVE INCOMING VOICE RULES:
+- Listen to incoming voice and respond STRICTLY from the development point of view of your explicitly defined skills: React.js, TypeScript, JavaScript, Golang, Node.js, Python, Docker, CI/CD, Cloud, and AI integration.
+- ABSOLUTE CONTEXT BOUNDARY: NEVER go outside the context that has not been shared by the user. Do not invent details, assumptions, or external scenarios. Answer ONLY what was asked.
 - Reply with TEXT ONLY (no audio).
-- Answer in 2–5 short sentences max unless asked for detail.
-- Skip long lists, markdown sections, and filler.
-- Start answering immediately; lead with the direct answer.`;
+- Answer immediately and directly without conversational filler ("Sure", "Certainly", "Here is").
+- Keep answers crisp, punchy, and focused (typically 2 to 4 sentences for direct questions). Stop as soon as the specific development point is cleanly resolved.`;
 };
 
 // Latency-tuned session: semantic VAD (high eagerness) + text-only output

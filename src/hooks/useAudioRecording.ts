@@ -8,13 +8,14 @@ interface UseAudioRecordingProps {
 export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecordingProps) => {
   const [isRecordingSystem, setIsRecordingSystem] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
   const transcribeAudio = async (audioBlob: Blob) => {
-
     console.log('Transcribing audio...');
+    setIsTranscribing(true);
 
     // 2. Switch to OGG Opus extension for file name mostly, type comes from blob
     const file = new File([audioBlob], 'audio.ogg', { type: audioBlob.type });
@@ -23,6 +24,10 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
       const formData = new FormData();
       formData.append('file', file);
       formData.append('model', 'whisper-1');
+      formData.append(
+        'prompt',
+        'Technical software development terms: React, TypeScript, JavaScript, Golang, Go, Node.js, Python, Docker, microservices, goroutines, REST API, Redis, CI/CD, frontend, backend.'
+      );
 
       // 3. Use native fetch instead of Axios
       const response = await fetch(
@@ -46,6 +51,8 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
       console.error('Error in transcribing:', error);
       // Optional: Reset UI on error or handle it
       onTranscriptionComplete('Error transcribing audio.');
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -118,6 +125,7 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
   return {
     isRecording: isRecordingSystem,
     isInitializing,
+    isTranscribing,
     startRecording,
     stopRecording
   };

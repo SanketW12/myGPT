@@ -21,6 +21,8 @@ export default function ChatUI() {
     messages,
     input,
     setInput,
+    attachedImage,
+    setAttachedImage,
     loading,
     useAssistantAPI,
     setUseAssistantAPI,
@@ -40,6 +42,7 @@ export default function ChatUI() {
   const {
     isRecording: isRecordingSystem,
     isInitializing,
+    isTranscribing,
     startRecording: startSystemRecording,
     stopRecording: stopSystemRecording
   } = useAudioRecording({
@@ -75,11 +78,8 @@ export default function ChatUI() {
     closeScreenshotModal,
     handleAreaCapture
   } = useScreenshot({
-    onOCRComplete: (text) => {
-      handleSend(text);
-    },
     onImageCaptured: (dataUrl) => {
-      handleSendImage(dataUrl);
+      setAttachedImage(dataUrl);
     }
   });
 
@@ -101,8 +101,34 @@ export default function ChatUI() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  // Handler for cursor corner-drag resizing (reduce or expand window)
+  const handleCornerResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    let prevX = e.screenX;
+    let prevY = e.screenY;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.screenX - prevX;
+      const deltaY = moveEvent.screenY - prevY;
+      prevX = moveEvent.screenX;
+      prevY = moveEvent.screenY;
+      if (deltaX !== 0 || deltaY !== 0) {
+        window?.Main?.resizeWindow?.(deltaX, deltaY);
+      }
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-900/50 text-white font-sans antialiased overflow-hidden">
+    <div className="flex flex-col h-screen w-full bg-gray-900/50 text-white font-sans antialiased overflow-hidden relative">
       {isAreaCaptureMode && (
         <AreaScreenshot
           onCapture={(blob) => {
@@ -141,10 +167,13 @@ export default function ChatUI() {
       <InputArea
         input={input}
         setInput={setInput}
+        attachedImage={attachedImage}
+        onRemoveAttachment={() => setAttachedImage(null)}
         handleSend={() => handleSend()}
         loading={loading}
         stopGeneration={stopGeneration}
         isRecording={isRecordingSystem}
+        isTranscribing={isTranscribing}
         startRecording={startSystemRecording}
         stopRecording={stopSystemRecording}
         isRealtime={isRealtime}
@@ -156,6 +185,26 @@ export default function ChatUI() {
         isAreaCaptureMode={isAreaCaptureMode}
         onEnterAreaCaptureMode={() => setIsAreaCaptureMode(true)}
       />
+
+      {/* Interactive Bottom-Right Corner Resize Handle */}
+      <div
+        className="undraggable absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        title="Drag corner with cursor to reduce or expand window size"
+        onMouseDown={handleCornerResizeStart}
+      >
+        <svg
+          className="w-3 h-3 opacity-60 hover:opacity-100"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <line x1="14" y1="6" x2="6" y2="14" strokeLinecap="round" />
+          <line x1="14" y1="10" x2="10" y2="14" strokeLinecap="round" />
+          <line x1="14" y1="14" x2="14" y2="14" strokeLinecap="round" />
+        </svg>
+      </div>
     </div>
   );
 }
