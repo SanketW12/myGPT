@@ -50,9 +50,9 @@ export const useKeyboardShortcuts = ({
   // Toggle audio listening mode (Start if not recording, Stop & Send if recording)
   const handleToggleRecording = useCallback((source: string) => {
     const now = Date.now();
-    // Debounce triggers within 350ms to avoid duplicate event signals (e.g. Fn DOM + Fn native)
-    if (now - lastToggleTimeRef.current < 350) {
-      console.log(`⏱️ Ignored rapid toggle from "${source}" within 350ms`);
+    // Debounce triggers within 150ms to avoid duplicate hardware event signals
+    if (now - lastToggleTimeRef.current < 150) {
+      console.log(`⏱️ Ignored rapid toggle from "${source}" within 150ms`);
       return;
     }
     lastToggleTimeRef.current = now;
@@ -67,8 +67,8 @@ export const useKeyboardShortcuts = ({
       onStartRecordingRef.current();
     } else {
       const elapsed = Date.now() - recordingStartTimeRef.current;
-      // Grace period to prevent accidental triggers right as recording starts
-      if (elapsed < 250) {
+      // Minimal grace period (100ms) to prevent accidental immediate double triggers
+      if (elapsed < 100) {
         return;
       }
       console.log(`⌨️ [RENDERER] "${source}" triggered - Stopping recording and sending directly to chat`);
@@ -139,36 +139,10 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      // Down Arrow: Start voice over (recording fallback)
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (!isRecordingRef.current && !isInitializingRef.current && !isRealtimeRef.current) {
-          console.log('⌨️ [RENDERER] "ArrowDown" pressed - Starting voice over (recording)');
-          recordingStartTimeRef.current = Date.now();
-          onStartRecordingRef.current();
-        }
-        return;
-      }
-
-      // Right Arrow: Send voice directly to chat fallback
-      if (e.key === 'ArrowRight') {
-        if (isRecordingRef.current) {
-          e.preventDefault();
-          const now = Date.now();
-          // Small grace period to prevent accidental trigger right as recording begins
-          if (now - recordingStartTimeRef.current < 200) {
-            return;
-          }
-          console.log('⌨️ [RENDERER] "ArrowRight" pressed - Stopping recording and sending directly to chat');
-          onStopRecordingRef.current();
-          return;
-        }
-      }
-
       const isTyping = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName);
 
-      // Window Movement for Up / Left / Right (when not typing and not recording)
-      if (!isTyping && (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      // Window Movement (Arrow Keys when not typing)
+      if (!isTyping && e.key.startsWith('Arrow')) {
         const direction = e.key.replace('Arrow', '').toLowerCase();
         if (window.Main?.handleDirection) {
           e.preventDefault();

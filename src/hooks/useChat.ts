@@ -2,7 +2,14 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import OpenAI from 'openai';
 import { FULL_STACK_DEVELOPER_PROMPT } from '../prompts/fullStackDeveloper';
 
-const DEFAULT_TEMPERATURE = Number(import.meta.env.VITE_TEMPERATURE || 0.4);
+const DEFAULT_TEMPERATURE = Number(import.meta.env.VITE_TEMPERATURE || 0.2);
+const CHAT_MODEL = import.meta.env.VITE_MODEL || 'gpt-4o-mini';
+
+// Reusable OpenAI client instance for persistent connection reuse & minimal latency
+const openaiClient = new OpenAI({
+  apiKey: import.meta.env.VITE_API_KEY,
+  dangerouslyAllowBrowser: true
+});
 
 interface Message {
   role: string;
@@ -59,10 +66,6 @@ export const useChat = () => {
       setAttachedImage(null);
 
       try {
-        const openai = new OpenAI({
-          apiKey: import.meta.env.VITE_API_KEY,
-          dangerouslyAllowBrowser: true
-        });
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
@@ -78,10 +81,10 @@ export const useChat = () => {
           { type: 'input_image', image_url: imageDataUrl, detail: 'auto' }
         ];
 
-        const stream = await openai.responses.create(
+        const stream = await openaiClient.responses.create(
           {
-            model: 'gpt-4.1-mini',
-            max_output_tokens: 1000,
+            model: CHAT_MODEL,
+            max_output_tokens: 800,
             temperature: DEFAULT_TEMPERATURE,
             stream: true,
             instructions: systemPrompt,
@@ -97,6 +100,7 @@ export const useChat = () => {
         );
 
         let assistantMessage = '';
+        let isFirstChunk = true;
         for await (const chunk of stream) {
           if (chunk.type === 'response.created' && chunk.response?.id) {
             assistantPreviousResponseIdRef.current = chunk.response.id;
@@ -104,6 +108,10 @@ export const useChat = () => {
 
           const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
           if (content) {
+            if (isFirstChunk) {
+              setLoading(false);
+              isFirstChunk = false;
+            }
             assistantMessage += content;
             setMessages((prev) => {
               const lastMsg = prev[prev.length - 1];
@@ -127,20 +135,18 @@ export const useChat = () => {
     [input, systemPrompt, useAssistantAPI]
   );
 
-  // Responses API logic (latest recommended OpenAI text flow)
+  // Responses API logic (fast streaming text flow)
   const handleSendWithResponses = async (text: string) => {
     try {
       setLoading(true);
-      const openai = new OpenAI({ apiKey: import.meta.env.VITE_API_KEY, dangerouslyAllowBrowser: true });
-
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const stream = await openai.responses.create(
+      const stream = await openaiClient.responses.create(
         {
-          model: 'gpt-4.1-mini',
+          model: CHAT_MODEL,
           stream: true,
-          max_output_tokens: 1000,
+          max_output_tokens: 800,
           temperature: DEFAULT_TEMPERATURE,
           instructions: systemPrompt,
           input: [
@@ -159,9 +165,14 @@ export const useChat = () => {
       );
 
       let assistantMessage = '';
+      let isFirstChunk = true;
       for await (const chunk of stream) {
         const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
         if (content) {
+          if (isFirstChunk) {
+            setLoading(false);
+            isFirstChunk = false;
+          }
           assistantMessage += content;
           setMessages((prev) => {
             const lastMsg = prev[prev.length - 1];
@@ -186,16 +197,14 @@ export const useChat = () => {
   const handleSendWithConversationAPI = async (text: string) => {
     try {
       setLoading(true);
-      const openai = new OpenAI({ apiKey: import.meta.env.VITE_API_KEY, dangerouslyAllowBrowser: true });
-
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const stream = await openai.responses.create(
+      const stream = await openaiClient.responses.create(
         {
-          model: 'gpt-4.1-mini',
+          model: CHAT_MODEL,
           stream: true,
-          max_output_tokens: 1000,
+          max_output_tokens: 800,
           temperature: DEFAULT_TEMPERATURE,
           instructions: systemPrompt,
           previous_response_id: assistantPreviousResponseIdRef.current || undefined,
@@ -205,6 +214,7 @@ export const useChat = () => {
       );
 
       let assistantMessage = '';
+      let isFirstChunk = true;
       for await (const chunk of stream) {
         if (chunk.type === 'response.created') {
           assistantPreviousResponseIdRef.current = chunk.response.id;
@@ -212,6 +222,10 @@ export const useChat = () => {
 
         const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
         if (content) {
+          if (isFirstChunk) {
+            setLoading(false);
+            isFirstChunk = false;
+          }
           assistantMessage += content;
           setMessages((prev) => {
             const lastMsg = prev[prev.length - 1];
@@ -295,8 +309,14 @@ export const useChat = () => {
       // If both text and image are empty, do nothing
       if (!messageText && !imageToSend) return;
 
-      // Prevent concurrent double-sends from rapid keypresses or clicks
-      if (isSendingRef.current || loading) return;
+      // If a request is already running, abort it immediately so the new request is processed with zero delay
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
+      // Guard against concurrent double-entry while setting up
+      if (isSendingRef.current) return;
       isSendingRef.current = true;
 
       try {
@@ -316,7 +336,7 @@ export const useChat = () => {
         isSendingRef.current = false;
       }
     },
-    [input, attachedImage, loading, useAssistantAPI, handleSendImage, handleSendWithConversationAPI, handleSendWithResponses]
+    [input, attachedImage, useAssistantAPI, handleSendImage, handleSendWithConversationAPI, handleSendWithResponses]
   );
 
   return {

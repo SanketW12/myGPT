@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Square, Crop, Mic, X, Trash2 } from 'lucide-react';
+import { Send, Square, Crop, Mic, Radio, X, Trash2 } from 'lucide-react';
 
 interface InputAreaProps {
     input: string;
@@ -73,7 +73,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 <div className="absolute -top-10 left-0 right-0 flex justify-center">
                     <div className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-medium animate-pulse flex items-center gap-2 shadow-lg">
                         <span className="w-2 h-2 bg-white rounded-full"></span>
-                        Listening... (Press Shift or → to Send directly)
+                        Listening... (Press Shift to Send)
                     </div>
                 </div>
             )}
@@ -148,7 +148,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     placeholder={
                         attachedImage
                             ? "Add text context for this screenshot (or press Enter to send)..."
-                            : "Type a message (Press shift  to speak / send, or ↓ / →)..."
+                            : "Type a message (Press Shift to speak / send)..."
                     }
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -164,12 +164,22 @@ export const InputArea: React.FC<InputAreaProps> = ({
                         {loading ? <Square size={18} fill="white" /> : <Send size={18} color="white" />}
                     </button>
 
+                    {/* Microphone Toggle (Shift) Button */}
+                    <button
+                        onClick={isRecording ? stopRecording : startRecording}
+                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all ${isRecording ? 'bg-red-600 animate-pulse ring-2 ring-red-400' : 'bg-gray-900'}`}
+                        title={isRecording ? "Stop Listening & Submit (Shift)" : "Start Listening (Shift)"}
+                    >
+                        <Mic size={18} color="white" />
+                    </button>
+
+                    {/* Realtime Conversation (Space) Button */}
                     <button
                         onClick={isRealtime ? stopRealtime : startRealtime}
                         className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${isRealtime ? 'bg-green-500 animate-pulse' : 'bg-gray-900'}`}
-                        title={isRealtime ? 'Stop Realtime (click only)' : 'Start Realtime (Space or click)'}
+                        title={isRealtime ? 'Stop Realtime (Space or click)' : 'Start Realtime (Space)'}
                     >
-                        <Mic size={18} color="white" />
+                        <Radio size={18} color="white" />
                     </button>
 
                     <button

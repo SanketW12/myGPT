@@ -17,19 +17,20 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
     console.log('Transcribing audio...');
     setIsTranscribing(true);
 
-    // 2. Switch to OGG Opus extension for file name mostly, type comes from blob
     const file = new File([audioBlob], 'audio.ogg', { type: audioBlob.type });
 
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('model', 'whisper-1');
+      formData.append('language', 'en');
+      formData.append('temperature', '0');
+      formData.append('response_format', 'text');
       formData.append(
         'prompt',
-        'Technical software development terms: React, TypeScript, JavaScript, Golang, Go, Node.js, Python, Docker, microservices, goroutines, REST API, Redis, CI/CD, frontend, backend.'
+        'Technical software development terms: React, TypeScript, JavaScript, Golang, Node.js, Python, Docker, REST API, Redis, CI/CD.'
       );
 
-      // 3. Use native fetch instead of Axios
       const response = await fetch(
         'https://api.openai.com/v1/audio/transcriptions',
         {
@@ -41,15 +42,26 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
         }
       );
 
-      const data = await response.json();
-      console.log('Transcribed text:', data.text);
+      if (!response.ok) {
+        throw new Error(`Transcription failed: ${response.status} ${response.statusText}`);
+      }
 
-      if (data.text && data.text.trim()) {
-        onTranscriptionComplete(data.text);
+      const rawText = await response.text();
+      let transcribed = rawText.trim();
+      try {
+        const parsed = JSON.parse(transcribed);
+        if (parsed.text) transcribed = parsed.text.trim();
+      } catch {
+        // Body is already plain text from response_format: 'text'
+      }
+
+      console.log('Transcribed text:', transcribed);
+
+      if (transcribed) {
+        onTranscriptionComplete(transcribed);
       }
     } catch (error) {
       console.error('Error in transcribing:', error);
-      // Optional: Reset UI on error or handle it
       onTranscriptionComplete('Error transcribing audio.');
     } finally {
       setIsTranscribing(false);
@@ -104,7 +116,7 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
         setIsInitializing(false);
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(250);
       setIsRecordingSystem(true);
       setIsInitializing(false);
     } catch (error) {
