@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-// Removed axios import as we are moving to fetch
+import { JAVA_FULL_STACK_WHISPER_PROMPT } from '../prompts/javaFullStackDeveloper';
 
 interface UseAudioRecordingProps {
   onTranscriptionComplete: (text: string) => void;
@@ -26,10 +26,7 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
       formData.append('language', 'en');
       formData.append('temperature', '0');
       formData.append('response_format', 'text');
-      formData.append(
-        'prompt',
-        'Technical software development terms: React, TypeScript, JavaScript, Golang, Node.js, Python, Docker, REST API, Redis, CI/CD.'
-      );
+      formData.append('prompt', JAVA_FULL_STACK_WHISPER_PROMPT);
 
       const response = await fetch(
         'https://api.openai.com/v1/audio/transcriptions',

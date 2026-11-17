@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import OpenAI from 'openai';
-import { FULL_STACK_DEVELOPER_PROMPT } from '../prompts/fullStackDeveloper';
+import {
+  JAVA_FULL_STACK_DEVELOPER_PROMPT,
+  JAVA_FULL_STACK_IMAGE_PROMPT
+} from '../prompts/javaFullStackDeveloper';
 
 const DEFAULT_TEMPERATURE = Number(import.meta.env.VITE_TEMPERATURE || 0.2);
 const CHAT_MODEL = import.meta.env.VITE_MODEL || 'gpt-4o-mini';
+const MAX_OUTPUT_TOKENS = Number(import.meta.env.VITE_MAX_OUTPUT_TOKENS || 1400);
 
 // Reusable OpenAI client instance for persistent connection reuse & minimal latency
 const openaiClient = new OpenAI({
@@ -19,7 +23,7 @@ interface Message {
 
 export const useChat = () => {
   const systemPrompt =
-    import.meta.env.VITE_SYSTEM_PROMPT || FULL_STACK_DEVELOPER_PROMPT;
+    import.meta.env.VITE_SYSTEM_PROMPT || JAVA_FULL_STACK_DEVELOPER_PROMPT;
 
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('chatMessages');
@@ -69,9 +73,7 @@ export const useChat = () => {
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
-        const promptText =
-          userText ||
-          'This is a technical development problem or code question. Provide the solution or shortest explanation strictly from the development perspective of the stated skills (React, TypeScript, JavaScript, Golang, Node.js, Python, Docker, CI/CD, Cloud, AI integration). Do NOT go outside the context provided in the image.';
+        const promptText = userText || JAVA_FULL_STACK_IMAGE_PROMPT;
 
         const contentPayload: any[] = [
           {
@@ -84,7 +86,7 @@ export const useChat = () => {
         const stream = await openaiClient.responses.create(
           {
             model: CHAT_MODEL,
-            max_output_tokens: 800,
+            max_output_tokens: MAX_OUTPUT_TOKENS,
             temperature: DEFAULT_TEMPERATURE,
             stream: true,
             instructions: systemPrompt,
@@ -146,7 +148,7 @@ export const useChat = () => {
         {
           model: CHAT_MODEL,
           stream: true,
-          max_output_tokens: 800,
+          max_output_tokens: MAX_OUTPUT_TOKENS,
           temperature: DEFAULT_TEMPERATURE,
           instructions: systemPrompt,
           input: [
@@ -204,7 +206,7 @@ export const useChat = () => {
         {
           model: CHAT_MODEL,
           stream: true,
-          max_output_tokens: 800,
+          max_output_tokens: MAX_OUTPUT_TOKENS,
           temperature: DEFAULT_TEMPERATURE,
           instructions: systemPrompt,
           previous_response_id: assistantPreviousResponseIdRef.current || undefined,

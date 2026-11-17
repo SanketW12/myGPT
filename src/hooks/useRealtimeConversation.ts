@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { JAVA_FULL_STACK_REALTIME_RULES } from '../prompts/javaFullStackDeveloper';
 
 interface UseRealtimeConversationProps {
   instructions: string;
@@ -42,14 +43,7 @@ const floatTo16BitPCM = (input: Float32Array) => {
 const buildRealtimeInstructions = (instructions: string) => {
   return `${instructions.trim()}
 
-### LIVE SPEAKER AUDIO MONITORING RULES:
-- You are monitoring live audio coming exclusively from the system/speaker output.
-- Listen carefully to the complete recognized utterance from the speaker before responding.
-- Respond strictly from the development point of view of your skills: React.js, TypeScript, JavaScript, Golang, Node.js, Python, Docker, CI/CD, Cloud, and AI integration.
-- ABSOLUTE CONTEXT BOUNDARY: NEVER go outside the context that has been spoken or shared. Do not invent details, assumptions, or external scenarios. Answer ONLY what was discussed or requested.
-- Reply with TEXT ONLY (no audio).
-- Answer immediately and directly without conversational filler ("Sure", "Certainly", "Here is").
-- Keep answers crisp, punchy, and focused (typically 2 to 4 sentences for direct questions). Stop as soon as the specific development point is cleanly resolved.`;
+${JAVA_FULL_STACK_REALTIME_RULES}`;
 };
 
 /**
