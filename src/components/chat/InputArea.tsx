@@ -56,16 +56,11 @@ export const InputArea: React.FC<InputAreaProps> = ({
         <div className="border-t border-gray-700/50 flex flex-col bg-gray-800/50 backdrop-blur-sm relative">
             {(isRealtime || realtimeStatus) && (
                 <div className="absolute -top-10 left-0 right-0 flex justify-center">
-                    <div className={`${isRealtime && isListening ? 'bg-green-600 animate-pulse' : isRealtime ? 'bg-amber-600' : 'bg-amber-600'} text-white px-4 py-1 rounded-full text-sm font-medium flex items-center gap-2 max-w-[90%]`}>
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${isListening ? 'bg-white' : 'bg-white/50'}`}></span>
+                    <div className={`${isRealtime ? 'bg-green-600 animate-pulse' : 'bg-amber-600'} text-white px-4 py-1 rounded-full text-sm font-medium flex items-center gap-2 max-w-[90%] shadow-lg`}>
+                        <Radio size={14} className={isRealtime ? 'animate-spin' : ''} />
                         <span className="truncate">
-                            {realtimeStatus || (isListening ? 'Listening ON' : 'Listening OFF')}
+                            {realtimeStatus || (isRealtime ? 'Listening to speaker output…' : '')}
                         </span>
-                        {isRealtime && (
-                            <span className="text-[10px] uppercase tracking-wide opacity-80 shrink-0">
-                                {isListening ? 'ON' : 'OFF'}
-                            </span>
-                        )}
                     </div>
                 </div>
             )}
@@ -73,7 +68,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 <div className="absolute -top-10 left-0 right-0 flex justify-center">
                     <div className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-medium animate-pulse flex items-center gap-2 shadow-lg">
                         <span className="w-2 h-2 bg-white rounded-full"></span>
-                        Listening... (Press Shift to Send)
+                        Listening to microphone... (Press Shift to Send)
                     </div>
                 </div>
             )}
@@ -146,7 +141,9 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     type="text"
                     className="flex-1 min-w-0 bg-transparent border-none outline-none p-2 cursor-text text-white placeholder-gray-400 text-sm"
                     placeholder={
-                        attachedImage
+                        isRealtime
+                            ? "Realtime active (Listening to speaker output audio)..."
+                            : attachedImage
                             ? "Add text context for this screenshot (or press Enter to send)..."
                             : "Type a message (Press Shift to speak / send)..."
                     }
@@ -167,16 +164,31 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     {/* Microphone Toggle (Shift) Button */}
                     <button
                         onClick={isRecording ? stopRecording : startRecording}
-                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all ${isRecording ? 'bg-red-600 animate-pulse ring-2 ring-red-400' : 'bg-gray-900'}`}
-                        title={isRecording ? "Stop Listening & Submit (Shift)" : "Start Listening (Shift)"}
+                        disabled={isRealtime}
+                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all ${
+                            isRealtime
+                                ? 'bg-gray-800 opacity-40 cursor-not-allowed'
+                                : isRecording
+                                ? 'bg-red-600 animate-pulse ring-2 ring-red-400'
+                                : 'bg-gray-900'
+                        }`}
+                        title={
+                            isRealtime
+                                ? "Microphone disabled (Realtime speaker-listening active)"
+                                : isRecording
+                                ? "Stop Listening & Submit (Shift)"
+                                : "Start Listening (Shift)"
+                        }
                     >
                         <Mic size={18} color="white" />
                     </button>
 
-                    {/* Realtime Conversation (Space) Button */}
+                    {/* Realtime Speaker Listening (Space) Button */}
                     <button
                         onClick={isRealtime ? stopRealtime : startRealtime}
-                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${isRealtime ? 'bg-green-500 animate-pulse' : 'bg-gray-900'}`}
+                        className={`p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${
+                            isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
+                        }`}
                         title={isRealtime ? 'Stop Realtime (Space or click)' : 'Start Realtime (Space)'}
                     >
                         <Radio size={18} color="white" />

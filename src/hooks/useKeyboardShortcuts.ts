@@ -11,7 +11,7 @@ interface UseKeyboardShortcutsProps {
   onTakeScreenshot: () => void;
   onEnterAreaCaptureMode: () => void;
   onStartRealtime: () => void;
-  onToggleListening: () => void;
+  onStopRealtime: () => void;
 }
 
 export const useKeyboardShortcuts = ({
@@ -25,7 +25,7 @@ export const useKeyboardShortcuts = ({
   onTakeScreenshot,
   onEnterAreaCaptureMode,
   onStartRealtime,
-  onToggleListening
+  onStopRealtime
 }: UseKeyboardShortcutsProps) => {
   // Use refs so event handlers always access the freshest state
   const isRecordingRef = useRef(isRecording);
@@ -42,6 +42,12 @@ export const useKeyboardShortcuts = ({
 
   const onStopRecordingRef = useRef(onStopRecording);
   onStopRecordingRef.current = onStopRecording;
+
+  const onStartRealtimeRef = useRef(onStartRealtime);
+  onStartRealtimeRef.current = onStartRealtime;
+
+  const onStopRealtimeRef = useRef(onStopRealtime);
+  onStopRealtimeRef.current = onStopRealtime;
 
   const recordingStartTimeRef = useRef<number>(0);
   const shiftDownWithoutOtherKeyRef = useRef<boolean>(false);
@@ -173,16 +179,16 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      // Realtime: Space starts session, or toggles listening ON/OFF while active.
+      // Realtime: Space toggles dedicated Realtime speaker-audio listening mode ON / OFF.
       if (e.code === 'Space' || key === ' ') {
         e.preventDefault();
-        if (isInitializing || isRecording) return;
-        if (isRealtime) {
-          console.log('⌨️ [RENDERER] Space pressed - Toggle listening');
-          onToggleListening();
+        if (isInitializingRef.current || isRecordingRef.current) return;
+        if (isRealtimeRef.current) {
+          console.log('⌨️ [RENDERER] Space pressed - Stopping Realtime (restoring normal microphone mode)');
+          onStopRealtimeRef.current();
         } else {
-          console.log('⌨️ [RENDERER] Space pressed - Starting Realtime');
-          onStartRealtime();
+          console.log('⌨️ [RENDERER] Space pressed - Starting Realtime (speaker audio listening)');
+          onStartRealtimeRef.current();
         }
         return;
       }
@@ -229,7 +235,7 @@ export const useKeyboardShortcuts = ({
     onTakeScreenshot,
     onEnterAreaCaptureMode,
     onStartRealtime,
-    onToggleListening,
+    onStopRealtime,
     handleToggleRecording
   ]);
 };

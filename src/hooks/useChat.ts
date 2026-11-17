@@ -251,11 +251,9 @@ export const useChat = () => {
     setMessages((prev) => {
       const last = prev[prev.length - 1];
       const userMessage = { role: 'user', content: content.trim() };
-      if (last?.role === 'user') {
+      // If the last message is already user and assistant hasn't started, update it with the full accumulated sentence
+      if (last?.role === 'user' && !realtimeAssistantActiveRef.current) {
         return [...prev.slice(0, -1), userMessage];
-      }
-      if (last?.role === 'assistant' && realtimeAssistantActiveRef.current) {
-        return [...prev.slice(0, -1), userMessage, last];
       }
       return [...prev, userMessage];
     });
@@ -265,7 +263,7 @@ export const useChat = () => {
     if (!delta) return;
     setMessages((prev) => {
       const last = prev[prev.length - 1];
-      if (last?.role === 'user' && realtimeUserStreamingRef.current) {
+      if (last?.role === 'user' && !realtimeAssistantActiveRef.current) {
         return [...prev.slice(0, -1), { ...last, content: last.content + delta }];
       }
       realtimeUserStreamingRef.current = true;
@@ -297,6 +295,8 @@ export const useChat = () => {
 
   const finishRealtimeAssistantTurn = useCallback(() => {
     setLoading(false);
+    realtimeAssistantActiveRef.current = false;
+    realtimeUserStreamingRef.current = false;
   }, []);
 
   const isSendingRef = useRef(false);

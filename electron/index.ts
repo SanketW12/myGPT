@@ -54,9 +54,16 @@ import {
   nativeTheme,
   screen,
   desktopCapturer,
-  systemPreferences
+  systemPreferences,
+  session
 } from 'electron';
 import isDev from 'electron-is-dev';
+
+// Enable native system audio loopback capture flags for Chromium / Electron on macOS
+app.commandLine.appendSwitch(
+  'enable-features',
+  'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride'
+);
 
 async function createWindow() {
   const { width } = screen.getPrimaryDisplay().workAreaSize;
@@ -301,6 +308,36 @@ ipcMain.handle(
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Handle display media requests to capture system / speaker output audio (loopback)
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    desktopCapturer
+      .getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+      .then((sources) => {
+        const screenSource =
+          sources.find((s) => s.name.includes('Screen') || s.name.includes('Entire Screen')) || sources[0];
+        console.log('🔊 [MAIN] setDisplayMediaRequestHandler routed to screen source:', screenSource?.name);
+        callback({
+          video: screenSource,
+          audio: 'loopback'
+        });
+      })
+      .catch((err) => {
+        console.error('❌ [MAIN] Error in setDisplayMediaRequestHandler:', err);
+        callback({ video: null as any, audio: null as any });
+      });
+  });
+
+  // Automatically approve media & display-capture permission requests
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'display-capture' || permission === 'media') {
+      callback(true);
+      return;
+    }
+    callback(true);
+  });
+
+  session.defaultSession.setPermissionCheckHandler(() => true);
+
   createWindow();
 
   app.on('activate', () => {
