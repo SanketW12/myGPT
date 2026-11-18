@@ -52,24 +52,6 @@ const api = {
   },
   getWindowBounds: async () => {
     return ipcRenderer.invoke('get-window-bounds');
-  },
-  toggleAlwaysOnTop: () => {
-    ipcRenderer.send('toggle-always-on-top');
-  },
-  getAlwaysOnTop: async () => {
-    return ipcRenderer.invoke('get-always-on-top');
-  },
-  getZoomShareStatus: async () => {
-    return ipcRenderer.invoke('get-zoom-share-status');
-  },
-  getAutoHideOnShare: async () => {
-    return ipcRenderer.invoke('get-auto-hide-on-share');
-  },
-  setAutoHideOnShare: (value: boolean) => {
-    ipcRenderer.send('set-auto-hide-on-share', value);
-  },
-  toggleStealth: () => {
-    ipcRenderer.send('toggle-stealth');
   }
 };
 
@@ -134,11 +116,11 @@ function useLoading() {
   oDiv.innerHTML = `<div class="${className}"><div></div></div>`;
 
   return {
-    appendLoading: function () {
+    appendLoading: function() {
       document.head.appendChild(oStyle);
       document.body.appendChild(oDiv);
     },
-    removeLoading: function () {
+    removeLoading: function() {
       if (document.head.contains(oStyle)) document.head.removeChild(oStyle);
       if (document.body.contains(oDiv)) document.body.removeChild(oDiv);
     },
@@ -149,10 +131,10 @@ domReady().then(() => {
   const { appendLoading, removeLoading } = useLoading();
   myGlobal._removeLoading = removeLoading;
   appendLoading();
-
+  
   window.onmessage = (ev) => {
     ev.data.payload === 'removeLoading' && removeLoading();
   };
-
+  
   setTimeout(removeLoading, 1000);
 });

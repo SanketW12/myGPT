@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GripHorizontal, Minimize2, Maximize2, Minus, X, ShieldCheck, Pin, PinOff } from 'lucide-react';
+import { GripHorizontal, Minimize2, Maximize2, Minus, X } from 'lucide-react';
 
 interface ChatHeaderProps {
     messageCount: number;
@@ -15,61 +15,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     clearChat
 }) => {
     const [isCompact, setIsCompact] = useState(false);
-    const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
-    const [isZoomSharing, setIsZoomSharing] = useState(false);
-    const [autoHideOnShare, setAutoHideOnShare] = useState(true);
 
     useEffect(() => {
-        // Query initial Zoom screen sharing status and auto-hide setting
-        if (window?.Main?.getZoomShareStatus) {
-            window.Main.getZoomShareStatus().then((status) => {
-                if (typeof status === 'boolean') {
-                    setIsZoomSharing(status);
-                }
-            });
-        }
-        if (window?.Main?.getAutoHideOnShare) {
-            window.Main.getAutoHideOnShare().then((val) => {
-                if (typeof val === 'boolean') {
-                    setAutoHideOnShare(val);
-                }
-            });
-        }
-
-        // Listen for window size, pin state, and Zoom share state changes from main process
+        // Listen for window size changes from main process if available
         if (window?.Main?.on) {
-            const unsubSize = window.Main.on('window-size-changed', (data: { isCompact: boolean }) => {
+            window.Main.on('window-size-changed', (data: { isCompact: boolean }) => {
                 if (data && typeof data.isCompact === 'boolean') {
                     setIsCompact(data.isCompact);
                 }
             });
-
-            const unsubTop = window.Main.on('always-on-top-changed', (data: { isAlwaysOnTop: boolean }) => {
-                if (data && typeof data.isAlwaysOnTop === 'boolean') {
-                    setIsAlwaysOnTop(data.isAlwaysOnTop);
-                }
-            });
-
-            const unsubZoom = window.Main.on('zoom-share-status', (data: { isSharing: boolean }) => {
-                if (data && typeof data.isSharing === 'boolean') {
-                    setIsZoomSharing(data.isSharing);
-                }
-            });
-
-            return () => {
-                if (typeof unsubSize === 'function') unsubSize();
-                if (typeof unsubTop === 'function') unsubTop();
-                if (typeof unsubZoom === 'function') unsubZoom();
-            };
         }
     }, []);
-
-    const handleTogglePin = () => {
-        if (window?.Main?.toggleAlwaysOnTop) {
-            window.Main.toggleAlwaysOnTop();
-            setIsAlwaysOnTop((prev) => !prev);
-        }
-    };
 
     const handleToggleSize = () => {
         if (window?.Main?.toggleWindowSize) {
@@ -157,51 +113,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <span className="text-[11px] opacity-75 hidden sm:inline">Drag Screen</span>
             </div>
 
-            {/* Right section: Window Controls (Screen Protection badge, Pin, Reduce Size, Minimize, Close) */}
-            <div className="flex items-center gap-1.5 shrink-0">
-                {/* Shield indicator: Screen share protection active */}
-                <button
-                    onClick={() => {
-                        if (window?.Main?.toggleStealth) {
-                            window.Main.toggleStealth();
-                        }
-                    }}
-                    className={`undraggable flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] select-none transition-all cursor-pointer ${
-                        isZoomSharing
-                            ? 'text-emerald-300 bg-emerald-500/25 border border-emerald-500/50 shadow-sm shadow-emerald-500/20 hover:bg-emerald-500/40'
-                            : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20'
-                    }`}
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    title={
-                        isZoomSharing
-                            ? 'Zoom Screen Share Active: Stealth Protection Active (Auto-hides on share). Click or press Cmd+Option+H to toggle visibility.'
-                            : 'Screen Share Protection Active: Window content is completely hidden from Zoom, recordings & screen capture (Click or press Cmd+Option+H to toggle visibility)'
-                    }
-                >
-                    <ShieldCheck className={`w-3.5 h-3.5 text-emerald-400 ${isZoomSharing ? 'animate-pulse text-emerald-300' : ''}`} />
-                    <span className="hidden sm:inline font-medium">
-                        {isZoomSharing ? 'Zoom Protected' : 'Protected'}
-                    </span>
-                </button>
-
-                {/* Pin / Background mode toggle */}
-                <button
-                    onClick={handleTogglePin}
-                    className={`undraggable p-1.5 rounded-md transition-colors ${
-                        isAlwaysOnTop
-                            ? 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-700/60'
-                    }`}
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    title={
-                        isAlwaysOnTop
-                            ? 'Always on Top (Overlay mode): Active. Click to allow background mode.'
-                            : 'Background Mode: Active (Window stays behind other windows). Click to pin Always on Top.'
-                    }
-                >
-                    {isAlwaysOnTop ? <Pin className="w-3.5 h-3.5" /> : <PinOff className="w-3.5 h-3.5" />}
-                </button>
-
+            {/* Right section: Window Controls (Reduce Size, Minimize, Close) */}
+            <div className="flex items-center gap-1 shrink-0">
                 {/* Reduce / Compact size toggle */}
                 <button
                     onClick={handleToggleSize}
@@ -217,7 +130,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     onClick={handleMinimize}
                     className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/60 rounded-md transition-colors"
                     style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    title="Hide window (Shortcut: Cmd+Option+H)"
+                    title="Minimize window"
                 >
                     <Minus className="w-3.5 h-3.5" />
                 </button>
