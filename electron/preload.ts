@@ -52,6 +52,15 @@ const api = {
   },
   getWindowBounds: async () => {
     return ipcRenderer.invoke('get-window-bounds');
+  },
+  toggleAlwaysOnTop: () => {
+    ipcRenderer.send('toggle-always-on-top');
+  },
+  getAlwaysOnTop: async () => {
+    return ipcRenderer.invoke('get-always-on-top');
+  },
+  toggleStealth: () => {
+    ipcRenderer.send('toggle-stealth');
   }
 };
 
