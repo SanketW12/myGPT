@@ -59,6 +59,15 @@ const api = {
   getAlwaysOnTop: async () => {
     return ipcRenderer.invoke('get-always-on-top');
   },
+  getZoomShareStatus: async () => {
+    return ipcRenderer.invoke('get-zoom-share-status');
+  },
+  getAutoHideOnShare: async () => {
+    return ipcRenderer.invoke('get-auto-hide-on-share');
+  },
+  setAutoHideOnShare: (value: boolean) => {
+    ipcRenderer.send('set-auto-hide-on-share', value);
+  },
   toggleStealth: () => {
     ipcRenderer.send('toggle-stealth');
   }

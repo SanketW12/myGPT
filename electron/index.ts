@@ -68,6 +68,54 @@ app.commandLine.appendSwitch(
 
 let mainWindow: BrowserWindow | null = null;
 let isAlwaysOnTop = true; // Pin state: floating overlay vs background mode
+let isZoomSharingActive = false;
+let autoHideOnShare = true; // Automatically hide window when screen sharing starts
+
+/**
+ * Configure Zoom desktop client preferences on macOS.
+ * Sets `SetScreenCaptureMode` = "3" ("Advanced capture with window filtering").
+ * In this mode, Zoom's ScreenCaptureKit pipeline honors `NSWindowSharingNone`
+ * and hides the Electron window completely from Zoom screen sharing.
+ */
+function configureZoomCaptureMode() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const homeDir = app.getPath('home');
+    const userConfigPath = join(homeDir, 'Library/Preferences/us.zoom.config.plist');
+    execSync(`defaults write "${userConfigPath}" SetScreenCaptureMode -string "3" 2>/dev/null || true`);
+    execSync(`plutil -replace PackageRecommend -xml '<dict><key>SetScreenCaptureMode</key><string>3</string></dict>' "${userConfigPath}" 2>/dev/null || true`);
+    execSync(`defaults write us.zoom.xos SetScreenCaptureMode -string "3" 2>/dev/null || true`);
+    console.log('✅ [MAIN] Zoom screen capture mode configured to Advanced Window Filtering (3)');
+  } catch (err) {
+    console.warn('⚠️ [MAIN] Note on Zoom plist config:', err);
+  }
+}
+
+/**
+ * Check if Zoom screen sharing is active by monitoring CptHost process.
+ * When screen sharing starts, automatically hide the window to ensure it never appears on the share.
+ */
+function checkZoomScreenShare() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const pgrepOutput = execSync('pgrep -x CptHost 2>/dev/null || true').toString().trim();
+    const isNowSharing = pgrepOutput.length > 0;
+    if (isNowSharing !== isZoomSharingActive) {
+      isZoomSharingActive = isNowSharing;
+      console.log(`🎥 [MAIN] Zoom screen share state changed: active = ${isZoomSharingActive}`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (isZoomSharingActive && autoHideOnShare) {
+          console.log('🛡️ [MAIN] Zoom screen sharing started: Auto-hiding window for complete invisibility');
+          mainWindow.hide();
+        }
+        applyProtection(mainWindow);
+        mainWindow.webContents.send('zoom-share-status', { isSharing: isZoomSharingActive });
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Enforce OS-level window content protection.
@@ -82,12 +130,19 @@ function applyProtection(win: BrowserWindow | null) {
     if (typeof (win as any).setHiddenInMissionControl === 'function') {
       (win as any).setHiddenInMissionControl(true);
     }
+    // Explicitly disable native drop shadow on macOS so shadow buffer cannot leak into screen share
+    if (process.platform === 'darwin' && typeof (win as any).setHasShadow === 'function') {
+      (win as any).setHasShadow(false);
+    }
   } catch (err) {
     console.error('❌ [MAIN] Error applying content protection:', err);
   }
 }
 
 async function createWindow() {
+  // Ensure Zoom preferences are optimized for window filtering
+  configureZoomCaptureMode();
+
   const { width } = screen.getPrimaryDisplay().workAreaSize;
   const initialX = Math.max(20, Math.floor(width - 720));
   // Create the browser window.
@@ -105,12 +160,12 @@ async function createWindow() {
     transparent: true,
     backgroundColor: '#00000000',
     alwaysOnTop: false, // Explicitly managed below to avoid 'screen-saver' level forcing
-    hasShadow: true,
+    hasShadow: false, // Explicitly false: prevents macOS drop-shadow from leaking into Zoom screen share
     enableLargerThanScreen: true,
     roundedCorners: true,
     focusable: true,
     hiddenInMissionControl: true, // Hide from macOS Mission Control & window pickers
-    skipTaskbar: process.platform === 'win32', // Hide from taskbar window list on Windows
+    skipTaskbar: true, // Hide from taskbar and application window switchers
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'), // Use .cjs
       contextIsolation: true,
@@ -181,15 +236,31 @@ async function createWindow() {
   window.on('move', () => applyProtection(window));
   window.on('resize', () => applyProtection(window));
 
-  // Active Watchdog Guard: Continuously enforce content protection every second.
-  // Guarantees that whether joining new or existing Zoom calls, the window is never captured.
+  // Active Watchdog Guard: Continuously enforce content protection every 400ms.
+  // Guarantees that whether joining new or existing Zoom calls, the window is immediately and perpetually hidden.
   const protectionInterval = setInterval(() => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       clearInterval(protectionInterval);
       return;
     }
     applyProtection(mainWindow);
-  }, 1000);
+  }, 400);
+
+  // Monitor Zoom screen sharing host process (CptHost) every 300ms and notify renderer / auto-hide
+  const zoomCheckInterval = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      clearInterval(zoomCheckInterval);
+      return;
+    }
+    checkZoomScreenShare();
+  }, 300);
+
+  // Perform immediate check for active screen sharing on startup
+  checkZoomScreenShare();
+  if (isZoomSharingActive && autoHideOnShare) {
+    console.log('🛡️ [MAIN] Screen sharing active on launch: Auto-hiding window for complete invisibility');
+    window.hide();
+  }
 
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
     console.error('❌ [MAIN] Preload error:', { preloadPath, error });
@@ -268,6 +339,16 @@ async function createWindow() {
   ipcMain.on('close', () => {
     if (!window || window.isDestroyed()) return;
     window.close();
+  });
+
+  // Query Zoom screen sharing active status
+  ipcMain.handle('get-zoom-share-status', () => isZoomSharingActive);
+
+  // Auto-hide on screen share settings
+  ipcMain.handle('get-auto-hide-on-share', () => autoHideOnShare);
+  ipcMain.on('set-auto-hide-on-share', (_event, value: boolean) => {
+    autoHideOnShare = value;
+    console.log(`🛡️ [MAIN] set-auto-hide-on-share: ${autoHideOnShare}`);
   });
 
   // Toggle Always On Top (Pinned vs Background mode)
@@ -447,6 +528,11 @@ app.whenReady().then(() => {
   });
 
   session.defaultSession.setPermissionCheckHandler(() => true);
+
+  // Automatically enforce screen protection on any window created by Electron
+  app.on('browser-window-created', (_, win) => {
+    applyProtection(win);
+  });
 
   createWindow();
 
