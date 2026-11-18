@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GripHorizontal, Minimize2, Maximize2, Minus, X } from 'lucide-react';
+import { GripHorizontal, Minimize2, Maximize2, Minus, X, Pin, PinOff, ShieldCheck } from 'lucide-react';
 
 interface ChatHeaderProps {
     messageCount: number;
@@ -15,17 +15,43 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     clearChat
 }) => {
     const [isCompact, setIsCompact] = useState(false);
+    const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
 
     useEffect(() => {
-        // Listen for window size changes from main process if available
+        // Query initial always-on-top state
+        window?.Main?.getAlwaysOnTop?.().then((top) => {
+            if (typeof top === 'boolean') {
+                setIsAlwaysOnTop(top);
+            }
+        });
+
+        // Listen for window state changes from main process
         if (window?.Main?.on) {
-            window.Main.on('window-size-changed', (data: { isCompact: boolean }) => {
+            const unsubSize = window.Main.on('window-size-changed', (data: { isCompact: boolean }) => {
                 if (data && typeof data.isCompact === 'boolean') {
                     setIsCompact(data.isCompact);
                 }
             });
+
+            const unsubTop = window.Main.on('always-on-top-changed', (data: { isAlwaysOnTop: boolean }) => {
+                if (data && typeof data.isAlwaysOnTop === 'boolean') {
+                    setIsAlwaysOnTop(data.isAlwaysOnTop);
+                }
+            });
+
+            return () => {
+                if (typeof unsubSize === 'function') unsubSize();
+                if (typeof unsubTop === 'function') unsubTop();
+            };
         }
     }, []);
+
+    const handleTogglePin = () => {
+        if (window?.Main?.toggleAlwaysOnTop) {
+            window.Main.toggleAlwaysOnTop();
+            setIsAlwaysOnTop((prev) => !prev);
+        }
+    };
 
     const handleToggleSize = () => {
         if (window?.Main?.toggleWindowSize) {
@@ -113,8 +139,36 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <span className="text-[11px] opacity-75 hidden sm:inline">Drag Screen</span>
             </div>
 
-            {/* Right section: Window Controls (Reduce Size, Minimize, Close) */}
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Right section: Window Controls (Screen Protection badge, Pin, Reduce Size, Minimize, Close) */}
+            <div className="flex items-center gap-1.5 shrink-0">
+                {/* Shield indicator: Screen share protection active */}
+                <div
+                    className="undraggable flex items-center gap-1 px-1.5 py-0.5 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-[10px] select-none cursor-default"
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    title="Screen Share Protection Active: Window content is hidden from Zoom, recordings & screen capture"
+                >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline font-medium">Protected</span>
+                </div>
+
+                {/* Pin / Background mode toggle */}
+                <button
+                    onClick={handleTogglePin}
+                    className={`undraggable p-1.5 rounded-md transition-colors ${
+                        isAlwaysOnTop
+                            ? 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-700/60'
+                    }`}
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    title={
+                        isAlwaysOnTop
+                            ? 'Always on Top (Overlay mode): Active. Click to allow background mode.'
+                            : 'Background Mode: Active (Window stays behind other windows). Click to pin Always on Top.'
+                    }
+                >
+                    {isAlwaysOnTop ? <Pin className="w-3.5 h-3.5" /> : <PinOff className="w-3.5 h-3.5" />}
+                </button>
+
                 {/* Reduce / Compact size toggle */}
                 <button
                     onClick={handleToggleSize}
@@ -125,12 +179,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     {isCompact ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
                 </button>
 
-                {/* Minimize window */}
+                {/* Minimize / Hide window */}
                 <button
                     onClick={handleMinimize}
                     className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/60 rounded-md transition-colors"
                     style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    title="Minimize window"
+                    title="Hide window (Shortcut: Cmd+Option+H)"
                 >
                     <Minus className="w-3.5 h-3.5" />
                 </button>
