@@ -16,9 +16,27 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
     const [isCompact, setIsCompact] = useState(false);
     const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
+    const [isZoomSharing, setIsZoomSharing] = useState(false);
+    const [autoHideOnShare, setAutoHideOnShare] = useState(true);
 
     useEffect(() => {
-        // Listen for window size and pin state changes from main process
+        // Query initial Zoom screen sharing status and auto-hide setting
+        if (window?.Main?.getZoomShareStatus) {
+            window.Main.getZoomShareStatus().then((status) => {
+                if (typeof status === 'boolean') {
+                    setIsZoomSharing(status);
+                }
+            });
+        }
+        if (window?.Main?.getAutoHideOnShare) {
+            window.Main.getAutoHideOnShare().then((val) => {
+                if (typeof val === 'boolean') {
+                    setAutoHideOnShare(val);
+                }
+            });
+        }
+
+        // Listen for window size, pin state, and Zoom share state changes from main process
         if (window?.Main?.on) {
             const unsubSize = window.Main.on('window-size-changed', (data: { isCompact: boolean }) => {
                 if (data && typeof data.isCompact === 'boolean') {
@@ -32,9 +50,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 }
             });
 
+            const unsubZoom = window.Main.on('zoom-share-status', (data: { isSharing: boolean }) => {
+                if (data && typeof data.isSharing === 'boolean') {
+                    setIsZoomSharing(data.isSharing);
+                }
+            });
+
             return () => {
                 if (typeof unsubSize === 'function') unsubSize();
                 if (typeof unsubTop === 'function') unsubTop();
+                if (typeof unsubZoom === 'function') unsubZoom();
             };
         }
     }, []);
@@ -135,14 +160,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             {/* Right section: Window Controls (Screen Protection badge, Pin, Reduce Size, Minimize, Close) */}
             <div className="flex items-center gap-1.5 shrink-0">
                 {/* Shield indicator: Screen share protection active */}
-                <div
-                    className="undraggable flex items-center gap-1 px-1.5 py-0.5 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-[10px] select-none cursor-default"
+                <button
+                    onClick={() => {
+                        if (window?.Main?.toggleStealth) {
+                            window.Main.toggleStealth();
+                        }
+                    }}
+                    className={`undraggable flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] select-none transition-all cursor-pointer ${
+                        isZoomSharing
+                            ? 'text-emerald-300 bg-emerald-500/25 border border-emerald-500/50 shadow-sm shadow-emerald-500/20 hover:bg-emerald-500/40'
+                            : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20'
+                    }`}
                     style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    title="Screen Share Protection Active: Window content is completely hidden from Zoom, recordings & screen capture"
+                    title={
+                        isZoomSharing
+                            ? 'Zoom Screen Share Active: Stealth Protection Active (Auto-hides on share). Click or press Cmd+Option+H to toggle visibility.'
+                            : 'Screen Share Protection Active: Window content is completely hidden from Zoom, recordings & screen capture (Click or press Cmd+Option+H to toggle visibility)'
+                    }
                 >
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden sm:inline font-medium">Protected</span>
-                </div>
+                    <ShieldCheck className={`w-3.5 h-3.5 text-emerald-400 ${isZoomSharing ? 'animate-pulse text-emerald-300' : ''}`} />
+                    <span className="hidden sm:inline font-medium">
+                        {isZoomSharing ? 'Zoom Protected' : 'Protected'}
+                    </span>
+                </button>
 
                 {/* Pin / Background mode toggle */}
                 <button

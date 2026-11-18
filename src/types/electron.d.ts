@@ -15,6 +15,9 @@ export interface IElectronAPI {
   getWindowBounds?: () => Promise<{ width: number; height: number; x: number; y: number }>;
   toggleAlwaysOnTop?: () => void;
   getAlwaysOnTop?: () => Promise<boolean>;
+  getZoomShareStatus?: () => Promise<boolean>;
+  getAutoHideOnShare?: () => Promise<boolean>;
+  setAutoHideOnShare?: (value: boolean) => void;
   toggleStealth?: () => void;
 }
 
