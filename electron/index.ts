@@ -108,10 +108,10 @@ async function createWindow() {
     console.error('❌ [MAIN] Preload file NOT FOUND at:', preloadPath);
   }
 
-  window.setAlwaysOnTop(true, 'screen-saver');
+  window.setAlwaysOnTop(true, 'floating');
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // Hide window from screen capture/sharing
-  window.setContentProtection(true);
+  // Allow window to be visible in screen sharing so cursor states (e.g. text I-beam) are captured accurately
+  window.setContentProtection(false);
   // window.webContents.openDevTools();
 
   // Check permissions on macOS
@@ -138,7 +138,7 @@ async function createWindow() {
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
     console.error('❌ [MAIN] Preload error:', { preloadPath, error });
   });
-  // window.setContentProtection(true);
+  // window.setContentProtection(false);
   const port = process.env.PORT || 5421;
   const url = isDev ? `http://localhost:${port}` : join(__dirname, './dist-vite/index.html');
 
@@ -253,11 +253,11 @@ async function createWindow() {
     try {
       if (isCaptureMode) {
         // Keep window same size, just ensure it's on top for the selection process
-        window.setAlwaysOnTop(true, 'screen-saver');
+        window.setAlwaysOnTop(true, 'floating');
         console.log('✅ [MAIN] Window kept at current size for selection');
       } else {
         // Keep it always on top even after capture
-        window.setAlwaysOnTop(true, 'screen-saver');
+        window.setAlwaysOnTop(true, 'floating');
         console.log('✅ [MAIN] Window capture mode finished');
       }
     } catch (err) {
