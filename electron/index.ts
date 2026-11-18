@@ -69,6 +69,7 @@ app.commandLine.appendSwitch(
 let mainWindow: BrowserWindow | null = null;
 let isAlwaysOnTop = true; // Pin state: floating overlay vs background mode
 let isZoomSharingActive = false;
+let currentCptHostPid = '';
 let autoHideOnShare = true; // Automatically hide window when screen sharing starts
 
 /**
@@ -93,23 +94,34 @@ function configureZoomCaptureMode() {
 
 /**
  * Check if Zoom screen sharing is active by monitoring CptHost process.
- * When screen sharing starts, automatically hide the window to ensure it never appears on the share.
+ * Tracks PID changes to detect newly started meetings or screen shares immediately.
  */
 function checkZoomScreenShare() {
   if (process.platform !== 'darwin') return;
   try {
     const pgrepOutput = execSync('pgrep -x CptHost 2>/dev/null || true').toString().trim();
     const isNowSharing = pgrepOutput.length > 0;
-    if (isNowSharing !== isZoomSharingActive) {
-      isZoomSharingActive = isNowSharing;
-      console.log(`🎥 [MAIN] Zoom screen share state changed: active = ${isZoomSharingActive}`);
+
+    // Detect when a new screen share or new meeting starts (PID changed or started)
+    const shareStarted = isNowSharing && (pgrepOutput !== currentCptHostPid || !isZoomSharingActive);
+    const shareStopped = !isNowSharing && isZoomSharingActive;
+
+    currentCptHostPid = pgrepOutput;
+    isZoomSharingActive = isNowSharing;
+
+    if (shareStarted) {
+      console.log(`🎥 [MAIN] Zoom screen share started (PID: ${pgrepOutput}) - Auto-hiding window for stealth protection`);
       if (mainWindow && !mainWindow.isDestroyed()) {
-        if (isZoomSharingActive && autoHideOnShare) {
-          console.log('🛡️ [MAIN] Zoom screen sharing started: Auto-hiding window for complete invisibility');
+        if (autoHideOnShare) {
           mainWindow.hide();
         }
         applyProtection(mainWindow);
-        mainWindow.webContents.send('zoom-share-status', { isSharing: isZoomSharingActive });
+        mainWindow.webContents.send('zoom-share-status', { isSharing: true });
+      }
+    } else if (shareStopped) {
+      console.log('🎥 [MAIN] Zoom screen share stopped');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('zoom-share-status', { isSharing: false });
       }
     }
   } catch {
@@ -145,14 +157,14 @@ async function createWindow() {
 
   const { width } = screen.getPrimaryDisplay().workAreaSize;
   const initialX = Math.max(20, Math.floor(width - 720));
-  // Create the browser window.
+  // Create the browser window with show: false to prevent any initial flash during active screen share
   const window = new BrowserWindow({
     width: 700,
     height: 700,
     x: initialX, // Position around the right-center of screen
     y: 10, // At the top of the screen
     frame: false,
-    show: true,
+    show: false,
     resizable: true, // Allow user to resize and reduce the window size
     minWidth: 320,
     minHeight: 350,
@@ -236,6 +248,14 @@ async function createWindow() {
   window.on('move', () => applyProtection(window));
   window.on('resize', () => applyProtection(window));
 
+  // Intercept macOS minimize event to cleanly hide window without leaving Dock thumbnail snapshot
+  window.on('minimize', (event: any) => {
+    if (process.platform === 'darwin') {
+      event.preventDefault();
+      window.hide();
+    }
+  });
+
   // Active Watchdog Guard: Continuously enforce content protection every 400ms.
   // Guarantees that whether joining new or existing Zoom calls, the window is immediately and perpetually hidden.
   const protectionInterval = setInterval(() => {
@@ -255,11 +275,13 @@ async function createWindow() {
     checkZoomScreenShare();
   }, 300);
 
-  // Perform immediate check for active screen sharing on startup
+  // Check screen sharing on startup: if active, keep window hidden; otherwise safely reveal
   checkZoomScreenShare();
   if (isZoomSharingActive && autoHideOnShare) {
-    console.log('🛡️ [MAIN] Screen sharing active on launch: Auto-hiding window for complete invisibility');
-    window.hide();
+    console.log('🛡️ [MAIN] Screen sharing active on launch: Keeping window hidden for complete invisibility');
+  } else {
+    window.show();
+    window.focus();
   }
 
   window.webContents.on('preload-error', (_event, preloadPath, error) => {

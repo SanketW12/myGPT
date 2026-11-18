@@ -134,11 +134,11 @@ function useLoading() {
   oDiv.innerHTML = `<div class="${className}"><div></div></div>`;
 
   return {
-    appendLoading: function() {
+    appendLoading: function () {
       document.head.appendChild(oStyle);
       document.body.appendChild(oDiv);
     },
-    removeLoading: function() {
+    removeLoading: function () {
       if (document.head.contains(oStyle)) document.head.removeChild(oStyle);
       if (document.body.contains(oDiv)) document.body.removeChild(oDiv);
     },
@@ -149,10 +149,10 @@ domReady().then(() => {
   const { appendLoading, removeLoading } = useLoading();
   myGlobal._removeLoading = removeLoading;
   appendLoading();
-  
+
   window.onmessage = (ev) => {
     ev.data.payload === 'removeLoading' && removeLoading();
   };
-  
+
   setTimeout(removeLoading, 1000);
 });
