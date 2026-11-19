@@ -34,3 +34,12 @@
     z-index: 10001;
     pointer-events: none;
 }
+
+/* Ensure text fields and input controls display the text (I-beam) cursor consistently */
+input[type="text"],
+input[type="search"],
+textarea,
+.cursor-text {
+  cursor: text !important;
+  -webkit-app-region: no-drag;
+}
