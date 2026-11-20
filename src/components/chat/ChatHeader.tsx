@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GripHorizontal, Minimize2, Maximize2, Minus, X } from 'lucide-react';
+import { Minimize2, Maximize2, Minus, X } from 'lucide-react';
 
 interface ChatHeaderProps {
     messageCount: number;
@@ -73,7 +73,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     return (
         <div
             onMouseDown={handleDragMouseDown}
-            className="draggable px-3 py-2 border-b border-gray-700/50 bg-gray-800/80 flex justify-between items-center backdrop-blur-md sticky top-0 z-10 select-none cursor-grab active:cursor-grabbing"
+            className="draggable w-full px-3 py-2 border-b border-gray-700/50 bg-gray-800/80 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 select-none cursor-grab active:cursor-grabbing"
             style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
             {/* Left section: Mode toggle & Clear button */}
@@ -103,15 +103,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 )}
             </div>
 
-            {/* Center section: Visual Drag Handle */}
+            {/* Center section: Clean flexible spacer (draggable) */}
             <div
-                className="draggable flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-700/40 hover:bg-gray-700/70 text-gray-300 hover:text-white transition-colors text-xs font-medium tracking-wide mx-2 cursor-grab active:cursor-grabbing"
+                className="draggable flex-1 h-full mx-2 cursor-grab active:cursor-grabbing"
                 style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-                title="Click and drag with cursor to move screen"
-            >
-                <GripHorizontal className="w-4 h-4 text-gray-300" />
-                <span className="text-[11px] opacity-75 hidden sm:inline">Drag Screen</span>
-            </div>
+            />
 
             {/* Right section: Window Controls (Reduce Size, Minimize, Close) */}
             <div className="flex items-center gap-1 shrink-0">

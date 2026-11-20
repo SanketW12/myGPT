@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-// Removed axios import as we are moving to fetch
+import { JAVA_FULL_STACK_WHISPER_PROMPT } from '../prompts/javaFullStackDeveloper';
 
 interface UseAudioRecordingProps {
   onTranscriptionComplete: (text: string) => void;
@@ -9,7 +9,7 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
   const [isRecordingSystem, setIsRecordingSystem] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -26,19 +26,16 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
       formData.append('language', 'en');
       formData.append('temperature', '0');
       formData.append('response_format', 'text');
-      formData.append(
-        'prompt',
-        'Technical software development terms: React, TypeScript, JavaScript, Golang, Node.js, Python, Docker, REST API, Redis, CI/CD.'
-      );
+      formData.append('prompt', JAVA_FULL_STACK_WHISPER_PROMPT);
 
       const response = await fetch(
         'https://api.openai.com/v1/audio/transcriptions',
         {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${import.meta.env.VITE_API_KEY}`,
-            },
-            body: formData
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_API_KEY}`,
+          },
+          body: formData
         }
       );
 
@@ -81,13 +78,13 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
       // 2. Switch to OGG Opus (preferred)
       let mimeType = 'audio/ogg; codecs=opus';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'audio/webm; codecs=opus';
+        mimeType = 'audio/webm; codecs=opus';
       }
       // Fallback for Safari etc if OGG/WebM-Opus not supported? 
       // Usually webm/audio works. But user asked for specific fallback logic.
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-           console.warn(`Mime type ${mimeType} not supported, falling back to audio/webm`);
-           mimeType = 'audio/webm';
+        console.warn(`Mime type ${mimeType} not supported, falling back to audio/webm`);
+        mimeType = 'audio/webm';
       }
 
       console.log(`Using MIME type: ${mimeType}`);
@@ -106,7 +103,7 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
       mediaRecorder.onstop = () => {
         console.log('🛑 [useAudioRecording] Recording stopped, processing...');
         const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
-        
+
         stream.getTracks().forEach(track => track.stop());
 
         if (audioBlob.size > 0) {
@@ -125,7 +122,7 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
       setIsRecordingSystem(false);
       alert('Could not access microphone. Please check permissions.');
     }
-  }, [isInitializing, onTranscriptionComplete]); 
+  }, [isInitializing, onTranscriptionComplete]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {

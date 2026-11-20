@@ -1,6 +1,5 @@
 import React, { memo } from 'react';
 import MarkdownPreview from '@uiw/react-markdown-preview';
-import TypingEffect from '../TypingEffect';
 import TypeLoading from '../TypeLoading';
 
 interface Message {
@@ -15,53 +14,61 @@ interface MessageListProps {
     messagesEndRef: React.RefObject<HTMLDivElement>;
 }
 
-export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading, messagesEndRef }) => {
+// Memoized message item: prevents re-rendering and re-parsing markdown
+// for existing messages when streaming the latest message
+const MessageItem = memo(({ msg }: { msg: Message }) => {
     return (
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 custom-scrollbar scroll-smooth">
-            {messages.map((msg, idx) => (
+        <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            {msg.image && (
+                <div className="mb-2 max-w-[85%]">
+                    <img
+                        src={msg.image}
+                        alt="User upload"
+                        className="rounded-lg max-h-60 border border-gray-700 shadow-lg"
+                    />
+                </div>
+            )}
+            {(!msg.image || (msg.content && msg.content.trim().length > 0)) && (
                 <div
-                    key={idx}
-                    className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                    className={`max-w-[85%] rounded-2xl px-5 py-3.5 shadow-md backdrop-blur-sm ${
+                        msg.role === 'user'
+                            ? 'bg-blue-600/70 text-white rounded-br-none'
+                            : 'bg-gray-800/70 text-gray-100 border border-gray-700/50 rounded-bl-none'
+                    }`}
                 >
-                    {msg.image && (
-                        <div className="mb-2 max-w-[85%]">
-                            <img
-                                src={msg.image}
-                                alt="User upload"
-                                className="rounded-lg max-h-60 border border-gray-700 shadow-lg"
+                    {msg.role === 'user' ? (
+                        <div className="text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
+                            {msg.content}
+                        </div>
+                    ) : (
+                        <div className="markdown-container">
+                            <MarkdownPreview
+                                source={msg.content}
+                                style={{
+                                    backgroundColor: 'transparent',
+                                    color: 'inherit',
+                                    fontSize: '15px',
+                                    lineHeight: '1.6'
+                                }}
+                                wrapperElement={{
+                                    "data-color-mode": "dark"
+                                }}
                             />
                         </div>
                     )}
-                    {(!msg.image || (msg.content && msg.content.trim().length > 0)) && (
-                        <div
-                            className={`max-w-[85%] rounded-2xl px-5 py-3.5 shadow-md backdrop-blur-sm ${msg.role === 'user'
-                                ? 'bg-blue-600/70 text-white rounded-br-none'
-                                : 'bg-gray-800/70 text-gray-100 border border-gray-700/50 rounded-bl-none'
-                                }`}
-                        >
-                            {msg.role === 'user' ? (
-                                <div className="text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
-                                    {msg.content}
-                                </div>
-                            ) : (
-                                <div className="markdown-container">
-                                    <MarkdownPreview
-                                        source={msg.content}
-                                        style={{
-                                            backgroundColor: 'transparent',
-                                            color: 'inherit',
-                                            fontSize: '15px',
-                                            lineHeight: '1.6'
-                                        }}
-                                        wrapperElement={{
-                                            "data-color-mode": "dark"
-                                        }}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
+            )}
+        </div>
+    );
+});
+
+MessageItem.displayName = 'MessageItem';
+
+export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading, messagesEndRef }) => {
+    return (
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 custom-scrollbar">
+            {messages.map((msg, idx) => (
+                <MessageItem key={idx} msg={msg} />
             ))}
 
             {loading && (
@@ -75,3 +82,6 @@ export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading
         </div>
     );
 });
+
+MessageList.displayName = 'MessageList';
+

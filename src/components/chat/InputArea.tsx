@@ -137,7 +137,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
             {/* Input & Action Controls Row */}
             <div
                 className="undraggable p-3 sm:p-4 pr-6 sm:pr-7 flex items-center cursor-text"
-                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                style={{ cursor: 'text', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 onClick={(e) => {
                     // Clicking anywhere in the input field or container focuses the input for typing
                     if (!(e.target as HTMLElement).closest('button')) {
@@ -177,7 +177,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                             }
                             inputRef.current?.focus();
                         }}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
                         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         title={loading ? "Stop Generating" : attachedImage ? "Send Screenshot & Message" : "Send Message"}
                     >
@@ -192,8 +192,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
                             isRealtime
                                 ? 'bg-gray-800 opacity-40 cursor-not-allowed'
                                 : isRecording
-                                ? 'bg-red-600 animate-pulse ring-2 ring-red-400'
-                                : 'bg-gray-900'
+                                ? 'bg-red-600 animate-pulse ring-2 ring-red-400 cursor-pointer'
+                                : 'bg-gray-900 cursor-pointer'
                         }`}
                         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         title={
@@ -210,7 +210,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     {/* Realtime Speaker Listening (Space) Button */}
                     <button
                         onClick={isRealtime ? stopRealtime : startRealtime}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${
                             isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
                         }`}
                         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
@@ -221,7 +221,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
                     <button
                         onClick={onEnterAreaCaptureMode}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
                         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         title="Area Screenshot (S)"
                     >

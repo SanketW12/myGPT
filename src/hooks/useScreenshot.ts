@@ -83,8 +83,10 @@ export const useScreenshot = ({ onOCRComplete, onImageCaptured }: UseScreenshotP
           const imageDataUrl = canvas.toDataURL('image/png');
           console.log('✅ Full screen screenshot captured successfully!');
 
-          // Default behavior: Perform OCR
-          await performOCR(imageDataUrl);
+          // Only perform client OCR if an OCR callback handler is registered
+          if (onOCRComplete) {
+            await performOCR(imageDataUrl);
+          }
           // Attach captured screenshot instead of auto-sending
           if (onImageCaptured) {
             onImageCaptured(imageDataUrl);

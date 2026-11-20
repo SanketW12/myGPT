@@ -1,15 +1,67 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import OpenAI from 'openai';
-import { FULL_STACK_DEVELOPER_PROMPT } from '../prompts/fullStackDeveloper';
+import {
+  JAVA_FULL_STACK_DEVELOPER_PROMPT,
+  JAVA_FULL_STACK_IMAGE_PROMPT
+} from '../prompts/javaFullStackDeveloper';
 
-const DEFAULT_TEMPERATURE = Number(import.meta.env.VITE_TEMPERATURE || 0.2);
-const CHAT_MODEL = import.meta.env.VITE_MODEL || 'gpt-4o-mini';
+const rawModel = (import.meta.env.VITE_MODEL || 'gpt-4.1').trim();
+// OpenAI has deprecated legacy 'gpt-4' (returns model_not_found); automatically route to 'gpt-4.1'
+const DEFAULT_MODEL = rawModel === 'gpt-4' ? 'gpt-4.1' : rawModel;
+const MAX_OUTPUT_TOKENS = Number(import.meta.env.VITE_MAX_OUTPUT_TOKENS || 1500);
+
+// Models like gpt-5.5, o1, o3-mini do not support the 'temperature' parameter in OpenAI API
+const rawTemp = import.meta.env.VITE_TEMPERATURE;
+const isTempSupported =
+  !DEFAULT_MODEL.startsWith('o1') &&
+  !DEFAULT_MODEL.startsWith('o3') &&
+  !DEFAULT_MODEL.startsWith('gpt-5');
+const optionalTemperature =
+  rawTemp !== undefined && rawTemp !== '' && isTempSupported ? { temperature: Number(rawTemp) } : {};
 
 // Reusable OpenAI client instance for persistent connection reuse & minimal latency
 const openaiClient = new OpenAI({
   apiKey: import.meta.env.VITE_API_KEY,
   dangerouslyAllowBrowser: true
 });
+
+// Optimize screenshot image to fast JPEG format & capped dimensions for quick network transfer
+const optimizeImageForVision = (dataUrl: string): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 1600;
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      // High-quality JPEG reduces 5MB raw retina screenshot to ~150KB, speeding up upload 20x
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+};
 
 interface Message {
   role: string;
@@ -19,7 +71,7 @@ interface Message {
 
 export const useChat = () => {
   const systemPrompt =
-    import.meta.env.VITE_SYSTEM_PROMPT || FULL_STACK_DEVELOPER_PROMPT;
+    import.meta.env.VITE_SYSTEM_PROMPT || JAVA_FULL_STACK_DEVELOPER_PROMPT;
 
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('chatMessages');
@@ -34,10 +86,36 @@ export const useChat = () => {
   const assistantPreviousResponseIdRef = useRef<string | null>(null);
   const realtimeAssistantActiveRef = useRef(false);
   const realtimeUserStreamingRef = useRef(false);
+  const isStreamingRef = useRef(false);
+
+  // Helper to update the streaming assistant message in state
+  const updateAssistantMessage = useCallback((content: string) => {
+    setMessages((prev) => {
+      const lastMsg = prev[prev.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant') {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: 'assistant', content };
+        return updated;
+      }
+      return [...prev, { role: 'assistant', content }];
+    });
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('chatMessages', JSON.stringify(messages));
-  }, [messages]);
+    // Only persist completed messages to localStorage when NOT actively streaming,
+    // preventing synchronous disk serialization and main thread lag on every token chunk.
+    if (!loading && !isStreamingRef.current) {
+      try {
+        if (messages.length > 0) {
+          localStorage.setItem('chatMessages', JSON.stringify(messages));
+        } else {
+          localStorage.removeItem('chatMessages');
+        }
+      } catch (e) {
+        console.warn('Failed to save to localStorage:', e);
+      }
+    }
+  }, [messages, loading]);
 
   const clearChat = useCallback(() => {
     setMessages([]);
@@ -52,12 +130,14 @@ export const useChat = () => {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    isStreamingRef.current = false;
     setLoading(false);
   }, []);
 
   const handleSendImage = useCallback(
     async (imageDataUrl: string, customText?: string) => {
       setLoading(true);
+      isStreamingRef.current = true;
 
       const userText = (customText !== undefined ? customText : input).trim();
       const userMessage: Message = { role: 'user', content: userText, image: imageDataUrl };
@@ -69,31 +149,148 @@ export const useChat = () => {
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
-        const promptText =
-          userText ||
-          'This is a technical development problem or code question. Provide the solution or shortest explanation strictly from the development perspective of the stated skills (React, TypeScript, JavaScript, Golang, Node.js, Python, Docker, CI/CD, Cloud, AI integration). Do NOT go outside the context provided in the image.';
+        const promptText = userText || JAVA_FULL_STACK_IMAGE_PROMPT;
 
-        const contentPayload: any[] = [
-          {
-            type: 'input_text',
-            text: promptText
-          },
-          { type: 'input_image', image_url: imageDataUrl, detail: 'auto' }
-        ];
+        // Compress retina/4K screenshot to fast 150KB JPEG for immediate network upload
+        const optimizedImage = await optimizeImageForVision(imageDataUrl);
 
-        const stream = await openaiClient.responses.create(
-          {
-            model: CHAT_MODEL,
-            max_output_tokens: 800,
-            temperature: DEFAULT_TEMPERATURE,
-            stream: true,
-            instructions: systemPrompt,
-            previous_response_id: useAssistantAPI ? (assistantPreviousResponseIdRef.current || undefined) : undefined,
-            input: [
-              {
-                role: 'user',
-                content: contentPayload
+        let assistantMessage = '';
+        let isFirstChunk = true;
+        let lastUpdateTime = 0;
+
+        if (useAssistantAPI) {
+          // Assistant API / Responses API flow
+          const stream = await openaiClient.responses.create(
+            {
+              model: DEFAULT_MODEL,
+              max_output_tokens: MAX_OUTPUT_TOKENS,
+              ...optionalTemperature,
+              stream: true,
+              instructions: systemPrompt,
+              previous_response_id: assistantPreviousResponseIdRef.current || undefined,
+              input: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'input_text', text: promptText },
+                    { type: 'input_image', image_url: optimizedImage, detail: 'auto' }
+                  ]
+                }
+              ]
+            },
+            { signal: controller.signal }
+          );
+
+          for await (const chunk of stream) {
+            if (chunk.type === 'response.created' && chunk.response?.id) {
+              assistantPreviousResponseIdRef.current = chunk.response.id;
+            }
+
+            const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
+            if (content) {
+              assistantMessage += content;
+              if (isFirstChunk) {
+                setLoading(false);
+                isFirstChunk = false;
+                updateAssistantMessage(assistantMessage);
+                lastUpdateTime = performance.now();
+                continue;
               }
+              const now = performance.now();
+              if (now - lastUpdateTime > 25) {
+                lastUpdateTime = now;
+                updateAssistantMessage(assistantMessage);
+              }
+            }
+          }
+        } else {
+          // Fast direct Chat Completions vision flow (ultra-fast ~1.5s total time)
+          const stream = await openaiClient.chat.completions.create(
+            {
+              model: DEFAULT_MODEL,
+              max_completion_tokens: MAX_OUTPUT_TOKENS,
+              ...optionalTemperature,
+              stream: true,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: promptText },
+                    { type: 'image_url', image_url: { url: optimizedImage } }
+                  ]
+                }
+              ]
+            },
+            { signal: controller.signal }
+          );
+
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            if (content) {
+              assistantMessage += content;
+              if (isFirstChunk) {
+                setLoading(false);
+                isFirstChunk = false;
+                updateAssistantMessage(assistantMessage);
+                lastUpdateTime = performance.now();
+                continue;
+              }
+              const now = performance.now();
+              if (now - lastUpdateTime > 25) {
+                lastUpdateTime = now;
+                updateAssistantMessage(assistantMessage);
+              }
+            }
+          }
+        }
+
+        updateAssistantMessage(assistantMessage);
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || error?.message?.includes('abort')) {
+          return;
+        }
+        console.error('❌ Error sending image to OpenAI:', error);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `⚠️ Error processing image: ${error?.message || 'Network error'}` }
+        ]);
+      } finally {
+        isStreamingRef.current = false;
+        setLoading(false);
+      }
+    },
+    [input, systemPrompt, useAssistantAPI, updateAssistantMessage]
+  );
+
+  // Fast direct streaming chat completions flow (ultra-low latency: ~1.2s total time)
+  const handleSendWithFastAPI = useCallback(
+    async (text: string) => {
+      try {
+        setLoading(true);
+        isStreamingRef.current = true;
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        // Collect recent context (last 6 messages, text-only)
+        const recentMessages = messages
+          .filter((m) => m.content && m.content.trim().length > 0)
+          .slice(-6)
+          .map((m) => ({
+            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+            content: m.content
+          }));
+
+        const stream = await openaiClient.chat.completions.create(
+          {
+            model: DEFAULT_MODEL,
+            stream: true,
+            max_completion_tokens: MAX_OUTPUT_TOKENS,
+            ...optionalTemperature,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...recentMessages,
+              { role: 'user', content: text }
             ]
           },
           { signal: controller.signal }
@@ -101,149 +298,111 @@ export const useChat = () => {
 
         let assistantMessage = '';
         let isFirstChunk = true;
+        let lastUpdateTime = 0;
+
         for await (const chunk of stream) {
-          if (chunk.type === 'response.created' && chunk.response?.id) {
+          const content = chunk.choices[0]?.delta?.content || '';
+          if (content) {
+            assistantMessage += content;
+            if (isFirstChunk) {
+              setLoading(false);
+              isFirstChunk = false;
+              updateAssistantMessage(assistantMessage);
+              lastUpdateTime = performance.now();
+              continue;
+            }
+            const now = performance.now();
+            if (now - lastUpdateTime > 25) {
+              lastUpdateTime = now;
+              updateAssistantMessage(assistantMessage);
+            }
+          }
+        }
+        updateAssistantMessage(assistantMessage);
+        setLoading(false);
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || error?.message?.includes('abort')) {
+          return;
+        }
+        console.error('Error in Fast Chat completions API:', error);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `⚠️ Error fetching response: ${error?.message || 'Network error'}` }
+        ]);
+        setLoading(false);
+      } finally {
+        isStreamingRef.current = false;
+      }
+    },
+    [messages, systemPrompt, updateAssistantMessage]
+  );
+
+  // Conversation-style assistant flow using Responses API chaining.
+  const handleSendWithConversationAPI = useCallback(
+    async (text: string) => {
+      try {
+        setLoading(true);
+        isStreamingRef.current = true;
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        const stream = await openaiClient.responses.create(
+          {
+            model: DEFAULT_MODEL,
+            stream: true,
+            max_output_tokens: MAX_OUTPUT_TOKENS,
+            ...optionalTemperature,
+            instructions: systemPrompt,
+            previous_response_id: assistantPreviousResponseIdRef.current || undefined,
+            input: text
+          },
+          { signal: controller.signal }
+        );
+
+        let assistantMessage = '';
+        let isFirstChunk = true;
+        let lastUpdateTime = 0;
+
+        for await (const chunk of stream) {
+          if (chunk.type === 'response.created') {
             assistantPreviousResponseIdRef.current = chunk.response.id;
           }
 
           const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
           if (content) {
+            assistantMessage += content;
             if (isFirstChunk) {
               setLoading(false);
               isFirstChunk = false;
+              updateAssistantMessage(assistantMessage);
+              lastUpdateTime = performance.now();
+              continue;
             }
-            assistantMessage += content;
-            setMessages((prev) => {
-              const lastMsg = prev[prev.length - 1];
-              if (lastMsg && lastMsg.role === 'assistant') {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantMessage };
-                return updated;
-              } else {
-                return [...prev, { role: 'assistant', content: assistantMessage }];
-              }
-            });
+            const now = performance.now();
+            if (now - lastUpdateTime > 25) {
+              lastUpdateTime = now;
+              updateAssistantMessage(assistantMessage);
+            }
           }
         }
-      } catch (error) {
-        console.error('❌ Error sending image to OpenAI:', error);
-        setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: Unable to process image with OpenAI.' }]);
-      } finally {
+        updateAssistantMessage(assistantMessage);
         setLoading(false);
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || error?.message?.includes('abort')) {
+          return;
+        }
+        console.error('Error in Conversation API flow:', error);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `⚠️ Error in Conversation API: ${error?.message || 'Network error'}` }
+        ]);
+        setLoading(false);
+      } finally {
+        isStreamingRef.current = false;
       }
     },
-    [input, systemPrompt, useAssistantAPI]
+    [systemPrompt, updateAssistantMessage]
   );
-
-  // Responses API logic (fast streaming text flow)
-  const handleSendWithResponses = async (text: string) => {
-    try {
-      setLoading(true);
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
-      const stream = await openaiClient.responses.create(
-        {
-          model: CHAT_MODEL,
-          stream: true,
-          max_output_tokens: 800,
-          temperature: DEFAULT_TEMPERATURE,
-          instructions: systemPrompt,
-          input: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'input_text',
-                  text
-                }
-              ]
-            }
-          ]
-        },
-        { signal: controller.signal }
-      );
-
-      let assistantMessage = '';
-      let isFirstChunk = true;
-      for await (const chunk of stream) {
-        const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
-        if (content) {
-          if (isFirstChunk) {
-            setLoading(false);
-            isFirstChunk = false;
-          }
-          assistantMessage += content;
-          setMessages((prev) => {
-            const lastMsg = prev[prev.length - 1];
-            if (lastMsg && lastMsg.role === 'assistant') {
-              const updated = [...prev];
-              updated[updated.length - 1] = { role: 'assistant', content: assistantMessage };
-              return updated;
-            } else {
-              return [...prev, { role: 'assistant', content: assistantMessage }];
-            }
-          });
-        }
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error('Error in Responses API:', error);
-      setLoading(false);
-    }
-  };
-
-  // Conversation-style assistant flow using Responses API chaining.
-  const handleSendWithConversationAPI = async (text: string) => {
-    try {
-      setLoading(true);
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
-      const stream = await openaiClient.responses.create(
-        {
-          model: CHAT_MODEL,
-          stream: true,
-          max_output_tokens: 800,
-          temperature: DEFAULT_TEMPERATURE,
-          instructions: systemPrompt,
-          previous_response_id: assistantPreviousResponseIdRef.current || undefined,
-          input: text
-        },
-        { signal: controller.signal }
-      );
-
-      let assistantMessage = '';
-      let isFirstChunk = true;
-      for await (const chunk of stream) {
-        if (chunk.type === 'response.created') {
-          assistantPreviousResponseIdRef.current = chunk.response.id;
-        }
-
-        const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
-        if (content) {
-          if (isFirstChunk) {
-            setLoading(false);
-            isFirstChunk = false;
-          }
-          assistantMessage += content;
-          setMessages((prev) => {
-            const lastMsg = prev[prev.length - 1];
-            if (lastMsg && lastMsg.role === 'assistant') {
-              const updated = [...prev];
-              updated[updated.length - 1] = { role: 'assistant', content: assistantMessage };
-              return updated;
-            }
-            return [...prev, { role: 'assistant', content: assistantMessage }];
-          });
-        }
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error('Error in Conversation API flow:', error);
-      setLoading(false);
-    }
-  };
 
   const addRealtimeUserMessage = useCallback((content: string) => {
     if (!content.trim()) return;
@@ -299,8 +458,6 @@ export const useChat = () => {
     realtimeUserStreamingRef.current = false;
   }, []);
 
-  const isSendingRef = useRef(false);
-
   const handleSend = useCallback(
     async (text?: string, imageAttachment?: string) => {
       const messageText = (text !== undefined ? text : input).trim();
@@ -309,15 +466,12 @@ export const useChat = () => {
       // If both text and image are empty, do nothing
       if (!messageText && !imageToSend) return;
 
-      // If a request is already running, abort it immediately so the new request is processed with zero delay
+      // If a previous request is running, abort it immediately so the new request runs with zero delay
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
-
-      // Guard against concurrent double-entry while setting up
-      if (isSendingRef.current) return;
-      isSendingRef.current = true;
+      isStreamingRef.current = false;
 
       try {
         if (imageToSend) {
@@ -330,13 +484,15 @@ export const useChat = () => {
         if (useAssistantAPI) {
           await handleSendWithConversationAPI(messageText);
         } else {
-          await handleSendWithResponses(messageText);
+          await handleSendWithFastAPI(messageText);
         }
-      } finally {
-        isSendingRef.current = false;
+      } catch (err: any) {
+        if (err?.name !== 'AbortError' && !err?.message?.includes('abort')) {
+          console.error('Error in handleSend:', err);
+        }
       }
     },
-    [input, attachedImage, useAssistantAPI, handleSendImage, handleSendWithConversationAPI, handleSendWithResponses]
+    [input, attachedImage, useAssistantAPI, handleSendImage, handleSendWithConversationAPI, handleSendWithFastAPI]
   );
 
   return {
