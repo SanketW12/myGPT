@@ -55,7 +55,8 @@ import {
   screen,
   desktopCapturer,
   systemPreferences,
-  session
+  session,
+  globalShortcut
 } from 'electron';
 import isDev from 'electron-is-dev';
 
@@ -65,28 +66,118 @@ app.commandLine.appendSwitch(
   'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride'
 );
 
+let mainWindow: BrowserWindow | null = null;
+let isAlwaysOnTop = true; // Pin state: floating overlay vs background mode
+let isZoomSharingActive = false;
+let currentCptHostPid = '';
+let autoHideOnShare = true; // Automatically hide window when screen sharing starts
+
+/**
+ * Configure Zoom desktop client preferences on macOS.
+ * Sets `SetScreenCaptureMode` = "3" ("Advanced capture with window filtering").
+ * In this mode, Zoom's ScreenCaptureKit pipeline honors `NSWindowSharingNone`
+ * and hides the Electron window completely from Zoom screen sharing.
+ */
+function configureZoomCaptureMode() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const homeDir = app.getPath('home');
+    const userConfigPath = join(homeDir, 'Library/Preferences/us.zoom.config.plist');
+    execSync(`defaults write "${userConfigPath}" SetScreenCaptureMode -string "3" 2>/dev/null || true`);
+    execSync(`plutil -replace PackageRecommend -xml '<dict><key>SetScreenCaptureMode</key><string>3</string></dict>' "${userConfigPath}" 2>/dev/null || true`);
+    execSync(`defaults write us.zoom.xos SetScreenCaptureMode -string "3" 2>/dev/null || true`);
+    console.log('✅ [MAIN] Zoom screen capture mode configured to Advanced Window Filtering (3)');
+  } catch (err) {
+    console.warn('⚠️ [MAIN] Note on Zoom plist config:', err);
+  }
+}
+
+/**
+ * Check if Zoom screen sharing is active by monitoring CptHost process.
+ * Tracks PID changes to detect newly started meetings or screen shares immediately.
+ */
+function checkZoomScreenShare() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const pgrepOutput = execSync('pgrep -x CptHost 2>/dev/null || true').toString().trim();
+    const isNowSharing = pgrepOutput.length > 0;
+
+    // Detect when a new screen share or new meeting starts (PID changed or started)
+    const shareStarted = isNowSharing && (pgrepOutput !== currentCptHostPid || !isZoomSharingActive);
+    const shareStopped = !isNowSharing && isZoomSharingActive;
+
+    currentCptHostPid = pgrepOutput;
+    isZoomSharingActive = isNowSharing;
+
+    if (shareStarted) {
+      console.log(`🎥 [MAIN] Zoom screen share started (PID: ${pgrepOutput}) - Auto-hiding window for stealth protection`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (autoHideOnShare) {
+          mainWindow.hide();
+        }
+        applyProtection(mainWindow);
+        mainWindow.webContents.send('zoom-share-status', { isSharing: true });
+      }
+    } else if (shareStopped) {
+      console.log('🎥 [MAIN] Zoom screen share stopped');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('zoom-share-status', { isSharing: false });
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Enforce OS-level window content protection.
+ * On macOS: Sets NSWindowSharingNone, removing the window completely from all Zoom screen sharing modes, recordings, and screenshots.
+ * On Windows: Sets WDA_EXCLUDEFROMCAPTURE, excluding the window from DWM capture pipelines.
+ */
+function applyProtection(win: BrowserWindow | null) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    win.setContentProtection(true);
+    // On macOS, ensure the window is hidden from Mission Control / window pickers
+    if (typeof (win as any).setHiddenInMissionControl === 'function') {
+      (win as any).setHiddenInMissionControl(true);
+    }
+    // Explicitly disable native drop shadow on macOS so shadow buffer cannot leak into screen share
+    if (process.platform === 'darwin' && typeof (win as any).setHasShadow === 'function') {
+      (win as any).setHasShadow(false);
+    }
+  } catch (err) {
+    console.error('❌ [MAIN] Error applying content protection:', err);
+  }
+}
+
 async function createWindow() {
+  // Ensure Zoom preferences are optimized for window filtering
+  configureZoomCaptureMode();
+
   const { width } = screen.getPrimaryDisplay().workAreaSize;
   const initialX = Math.max(20, Math.floor(width - 720));
-  // Create the browser window.
+  // Create the browser window with show: false to prevent any initial flash during active screen share
   const window = new BrowserWindow({
     width: 700,
     height: 700,
     x: initialX, // Position around the right-center of screen
     y: 10, // At the top of the screen
     frame: false,
-    show: true,
+    show: false,
     resizable: true, // Allow user to resize and reduce the window size
     minWidth: 320,
     minHeight: 350,
-    fullscreenable: true,
+    fullscreenable: false, // Prevent window from entering or attaching to full-screen spaces
     transparent: true,
     backgroundColor: '#00000000',
-    alwaysOnTop: true,
-    hasShadow: true,
+    alwaysOnTop: false, // Explicitly managed below to avoid 'screen-saver' level forcing
+    hasShadow: false, // Explicitly false: prevents macOS drop-shadow from leaking into Zoom screen share
     enableLargerThanScreen: true,
     roundedCorners: true,
     focusable: true,
+    hiddenInMissionControl: true, // Hide from macOS Mission Control & window pickers
+    skipTaskbar: true, // Hide from taskbar and application window switchers
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'), // Use .cjs
       contextIsolation: true,
@@ -95,6 +186,8 @@ async function createWindow() {
       webSecurity: false // Disable web security in development
     }
   });
+
+  mainWindow = window;
 
   const preloadPath = join(__dirname, 'preload.cjs');
   console.log('🔧 [MAIN] Preload path:', preloadPath);
@@ -108,11 +201,19 @@ async function createWindow() {
     console.error('❌ [MAIN] Preload file NOT FOUND at:', preloadPath);
   }
 
-  window.setAlwaysOnTop(true, 'floating');
-  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // Allow window to be visible in screen sharing so cursor states (e.g. text I-beam) are captured accurately
-  window.setContentProtection(false);
-  // window.webContents.openDevTools();
+  // 1. Enforce content protection immediately on creation
+  applyProtection(window);
+
+  // 2. Set window level to 'floating'.
+  // visibleOnFullScreen: false ensures macOS NEVER forcefully pulls this window onto a full-screen Zoom meeting or screen share.
+  // skipTransformProcessType: true prevents macOS from altering process type and clearing NSWindowSharingNone.
+  if (isAlwaysOnTop) {
+    window.setAlwaysOnTop(true, 'floating');
+    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false, skipTransformProcessType: true });
+  } else {
+    window.setAlwaysOnTop(false);
+    window.setVisibleOnAllWorkspaces(false);
+  }
 
   // Check permissions on macOS
   if (process.platform === 'darwin') {
@@ -130,15 +231,62 @@ async function createWindow() {
     }
   }
 
-  // Log when preload script should have loaded
+  // Re-assert protection on key lifecycle events to prevent OS compositors from clearing it
+  window.once('ready-to-show', () => {
+    applyProtection(window);
+  });
+
   window.webContents.on('did-finish-load', () => {
     console.log('✅ [MAIN] Page finished loading');
+    applyProtection(window);
   });
+
+  window.on('show', () => applyProtection(window));
+  window.on('restore', () => applyProtection(window));
+  window.on('focus', () => applyProtection(window));
+  window.on('blur', () => applyProtection(window));
+  window.on('move', () => applyProtection(window));
+  window.on('resize', () => applyProtection(window));
+
+  // Intercept macOS minimize event to cleanly hide window without leaving Dock thumbnail snapshot
+  window.on('minimize', (event: any) => {
+    if (process.platform === 'darwin') {
+      event.preventDefault();
+      window.hide();
+    }
+  });
+
+  // Active Watchdog Guard: Continuously enforce content protection every 400ms.
+  // Guarantees that whether joining new or existing Zoom calls, the window is immediately and perpetually hidden.
+  const protectionInterval = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      clearInterval(protectionInterval);
+      return;
+    }
+    applyProtection(mainWindow);
+  }, 400);
+
+  // Monitor Zoom screen sharing host process (CptHost) every 300ms and notify renderer / auto-hide
+  const zoomCheckInterval = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      clearInterval(zoomCheckInterval);
+      return;
+    }
+    checkZoomScreenShare();
+  }, 300);
+
+  // Check screen sharing on startup: if active, keep window hidden; otherwise safely reveal
+  checkZoomScreenShare();
+  if (isZoomSharingActive && autoHideOnShare) {
+    console.log('🛡️ [MAIN] Screen sharing active on launch: Keeping window hidden for complete invisibility');
+  } else {
+    window.show();
+    window.focus();
+  }
 
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
     console.error('❌ [MAIN] Preload error:', { preloadPath, error });
   });
-  // window.setContentProtection(true);
   const port = process.env.PORT || 5421;
   const url = isDev ? `http://localhost:${port}` : join(__dirname, './dist-vite/index.html');
 
@@ -186,17 +334,73 @@ async function createWindow() {
 
   // For window controls & resizing
   ipcMain.on('minimize', () => {
-    // eslint-disable-next-line no-unused-expressions
-    window.isMinimized() ? window.restore() : window.minimize();
-    // or alternatively: win.isVisible() ? win.hide() : win.show()
+    if (!window || window.isDestroyed()) return;
+    if (process.platform === 'darwin') {
+      // On macOS, transparent frameless windows don't minimize properly to Dock
+      // and can be restored unintentionally during space / screen-share switches.
+      // Cleanly hiding the window completely removes it from screen and all capture pipelines.
+      if (window.isVisible()) {
+        window.hide();
+      } else {
+        window.show();
+        window.focus();
+        applyProtection(window);
+      }
+    } else {
+      window.isMinimized() ? window.restore() : window.minimize();
+      applyProtection(window);
+    }
   });
+
   ipcMain.on('maximize', () => {
-    // eslint-disable-next-line no-unused-expressions
+    if (!window || window.isDestroyed()) return;
     window.isMaximized() ? window.restore() : window.maximize();
+    applyProtection(window);
   });
 
   ipcMain.on('close', () => {
+    if (!window || window.isDestroyed()) return;
     window.close();
+  });
+
+  // Query Zoom screen sharing active status
+  ipcMain.handle('get-zoom-share-status', () => isZoomSharingActive);
+
+  // Auto-hide on screen share settings
+  ipcMain.handle('get-auto-hide-on-share', () => autoHideOnShare);
+  ipcMain.on('set-auto-hide-on-share', (_event, value: boolean) => {
+    autoHideOnShare = value;
+    console.log(`🛡️ [MAIN] set-auto-hide-on-share: ${autoHideOnShare}`);
+  });
+
+  // Toggle Always On Top (Pinned vs Background mode)
+  ipcMain.handle('get-always-on-top', () => isAlwaysOnTop);
+
+  ipcMain.on('toggle-always-on-top', (event) => {
+    if (!window || window.isDestroyed()) return;
+    isAlwaysOnTop = !isAlwaysOnTop;
+    console.log(`📌 [MAIN] toggle-always-on-top: ${isAlwaysOnTop}`);
+    if (isAlwaysOnTop) {
+      window.setAlwaysOnTop(true, 'floating');
+      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false, skipTransformProcessType: true });
+    } else {
+      window.setAlwaysOnTop(false);
+      window.setVisibleOnAllWorkspaces(false);
+    }
+    applyProtection(window);
+    event?.sender?.send('always-on-top-changed', { isAlwaysOnTop });
+  });
+
+  // Toggle Stealth / Hide mode
+  ipcMain.on('toggle-stealth', () => {
+    if (!window || window.isDestroyed()) return;
+    if (window.isVisible()) {
+      window.hide();
+    } else {
+      window.show();
+      window.focus();
+      applyProtection(window);
+    }
   });
 
   // Drag window via cursor movement
@@ -213,6 +417,7 @@ async function createWindow() {
     const newWidth = Math.max(320, Math.round(currentW + deltaX));
     const newHeight = Math.max(350, Math.round(currentH + deltaY));
     window.setSize(newWidth, newHeight);
+    applyProtection(window);
     const isCompact = newWidth <= 450;
     event?.sender?.send('window-size-changed', { isCompact, width: newWidth, height: newHeight });
   });
@@ -223,6 +428,7 @@ async function createWindow() {
     const w = Math.max(320, Math.round(newW));
     const h = Math.max(350, Math.round(newH));
     window.setSize(w, h);
+    applyProtection(window);
     const isCompact = w <= 450;
     event?.sender?.send('window-size-changed', { isCompact, width: w, height: h });
   });
@@ -239,6 +445,7 @@ async function createWindow() {
       window.setSize(700, 700);
       isCompact = false;
     }
+    applyProtection(window);
     event?.sender?.send('window-size-changed', { isCompact, width: window.getBounds().width, height: window.getBounds().height });
   });
 
@@ -248,18 +455,24 @@ async function createWindow() {
   });
 
   ipcMain.on('set-capture-mode', (_event, isCaptureMode) => {
-    if (!window) return;
+    if (!window || window.isDestroyed()) return;
     console.log(`🖥️ [MAIN] set-capture-mode: ${isCaptureMode} (Window size preserved)`);
     try {
       if (isCaptureMode) {
-        // Keep window same size, just ensure it's on top for the selection process
+        // Keep window same size, elevate to 'floating'
         window.setAlwaysOnTop(true, 'floating');
-        console.log('✅ [MAIN] Window kept at current size for selection');
       } else {
-        // Keep it always on top even after capture
-        window.setAlwaysOnTop(true, 'floating');
-        console.log('✅ [MAIN] Window capture mode finished');
+        // Restore user's configured alwaysOnTop state
+        if (isAlwaysOnTop) {
+          window.setAlwaysOnTop(true, 'floating');
+          window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false, skipTransformProcessType: true });
+        } else {
+          window.setAlwaysOnTop(false);
+          window.setVisibleOnAllWorkspaces(false);
+        }
       }
+      applyProtection(window);
+      console.log('✅ [MAIN] Window capture mode state updated');
     } catch (err) {
       console.error('❌ [MAIN] Error changing window capture mode:', err);
     }
@@ -338,12 +551,41 @@ app.whenReady().then(() => {
 
   session.defaultSession.setPermissionCheckHandler(() => true);
 
+  // Automatically enforce screen protection on any window created by Electron
+  app.on('browser-window-created', (_, win) => {
+    applyProtection(win);
+  });
+
   createWindow();
+
+  // Register global stealth hotkey to toggle app visibility anywhere (Cmd+Option+H on macOS, Ctrl+Alt+H on Windows/Linux)
+  const toggleShortcut = process.platform === 'darwin' ? 'Command+Option+H' : 'Control+Alt+H';
+  const registered = globalShortcut.register(toggleShortcut, () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isVisible()) {
+      console.log('👁️ [MAIN] Global stealth hotkey triggered - Hiding window');
+      mainWindow.hide();
+    } else {
+      console.log('👁️ [MAIN] Global stealth hotkey triggered - Showing window');
+      mainWindow.show();
+      mainWindow.focus();
+      applyProtection(mainWindow);
+    }
+  });
+  console.log(`⌨️ [MAIN] Global stealth hotkey (${toggleShortcut}) registered: ${registered}`);
 
   app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    } else if (mainWindow && !mainWindow.isDestroyed()) {
+      if (!mainWindow.isVisible()) {
+        mainWindow.show();
+      }
+      mainWindow.focus();
+      applyProtection(mainWindow);
+    }
   });
 });
 
@@ -355,6 +597,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
   if (fnListenerProcess) {
     try {
       fnListenerProcess.kill();
