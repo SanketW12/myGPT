@@ -5,9 +5,17 @@ import {
   JAVA_FULL_STACK_IMAGE_PROMPT
 } from '../prompts/javaFullStackDeveloper';
 
-const DEFAULT_TEMPERATURE = Number(import.meta.env.VITE_TEMPERATURE || 0.2);
-const CHAT_MODEL = import.meta.env.VITE_MODEL || 'gpt-4o-mini';
-const MAX_OUTPUT_TOKENS = Number(import.meta.env.VITE_MAX_OUTPUT_TOKENS || 1400);
+const DEFAULT_MODEL = import.meta.env.VITE_MODEL || 'gpt-5-mini';
+const MAX_OUTPUT_TOKENS = Number(import.meta.env.VITE_MAX_OUTPUT_TOKENS || 1500);
+
+// Models like gpt-5.5, o1, o3-mini do not support the 'temperature' parameter in OpenAI API
+const rawTemp = import.meta.env.VITE_TEMPERATURE;
+const isTempSupported =
+  !DEFAULT_MODEL.startsWith('o1') &&
+  !DEFAULT_MODEL.startsWith('o3') &&
+  !DEFAULT_MODEL.startsWith('gpt-5');
+const optionalTemperature =
+  rawTemp !== undefined && rawTemp !== '' && isTempSupported ? { temperature: Number(rawTemp) } : {};
 
 // Reusable OpenAI client instance for persistent connection reuse & minimal latency
 const openaiClient = new OpenAI({
@@ -85,9 +93,9 @@ export const useChat = () => {
 
         const stream = await openaiClient.responses.create(
           {
-            model: CHAT_MODEL,
+            model: DEFAULT_MODEL,
             max_output_tokens: MAX_OUTPUT_TOKENS,
-            temperature: DEFAULT_TEMPERATURE,
+            ...optionalTemperature,
             stream: true,
             instructions: systemPrompt,
             previous_response_id: useAssistantAPI ? (assistantPreviousResponseIdRef.current || undefined) : undefined,
@@ -146,10 +154,10 @@ export const useChat = () => {
 
       const stream = await openaiClient.responses.create(
         {
-          model: CHAT_MODEL,
+          model: DEFAULT_MODEL,
           stream: true,
           max_output_tokens: MAX_OUTPUT_TOKENS,
-          temperature: DEFAULT_TEMPERATURE,
+          ...optionalTemperature,
           instructions: systemPrompt,
           input: [
             {
@@ -204,10 +212,10 @@ export const useChat = () => {
 
       const stream = await openaiClient.responses.create(
         {
-          model: CHAT_MODEL,
+          model: DEFAULT_MODEL,
           stream: true,
           max_output_tokens: MAX_OUTPUT_TOKENS,
-          temperature: DEFAULT_TEMPERATURE,
+          ...optionalTemperature,
           instructions: systemPrompt,
           previous_response_id: assistantPreviousResponseIdRef.current || undefined,
           input: text
