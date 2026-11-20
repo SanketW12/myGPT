@@ -405,9 +405,11 @@ async function createWindow() {
 
   // Drag window via cursor movement
   ipcMain.on('drag-window', (_event, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
-    if (!window) return;
+    if (!window || window.isDestroyed()) return;
     const { x, y } = window.getBounds();
-    window.setPosition(Math.round(x + deltaX), Math.round(y + deltaY));
+    const newX = Math.round(x + deltaX);
+    const newY = Math.max(0, Math.round(y + deltaY));
+    window.setPosition(newX, newY);
   });
 
   // Resize window by delta (e.g. from corner resize grip)
