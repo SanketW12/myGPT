@@ -59,7 +59,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     <div className={`${isRealtime ? 'bg-green-600 animate-pulse' : 'bg-amber-600'} text-white px-4 py-1 rounded-full text-sm font-medium flex items-center gap-2 max-w-[90%] shadow-lg`}>
                         <Radio size={14} className={isRealtime ? 'animate-spin' : ''} />
                         <span className="truncate">
-                            {realtimeStatus || (isRealtime ? 'Listening to speaker output…' : '')}
+                            {realtimeStatus || (isRealtime ? 'Listening to primary speaker…' : '')}
                         </span>
                     </div>
                 </div>
@@ -152,7 +152,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     style={{ cursor: 'text', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     placeholder={
                         isRealtime
-                            ? "Realtime active (Listening to speaker output audio)..."
+                            ? "Realtime active (Filtering noise & listening to primary speaker)..."
                             : attachedImage
                             ? "Add text context for this screenshot (or press Enter to send)..."
                             : "Type a message (Press Shift to speak / send)..."
@@ -198,7 +198,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         title={
                             isRealtime
-                                ? "Microphone disabled (Realtime speaker-listening active)"
+                                ? "Microphone disabled (Realtime primary speaker listening active)"
                                 : isRecording
                                 ? "Stop Listening & Submit (Shift)"
                                 : "Start Listening (Shift)"

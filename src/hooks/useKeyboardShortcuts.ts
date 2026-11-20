@@ -157,6 +157,34 @@ export const useKeyboardShortcuts = ({
         }
       }
 
+      // Space Key: Toggle Realtime speaker-audio listening mode ON / OFF in one go
+      if (e.code === 'Space' || e.key === ' ') {
+        const inputVal = isTyping ? ((e.target as HTMLInputElement).value || '') : '';
+        // If actively typing a message (input has text) and Realtime is not active, allow standard space character
+        if (isTyping && inputVal.trim().length > 0 && !isRealtimeRef.current) {
+          return;
+        }
+
+        e.preventDefault();
+        if (isInitializingRef.current || isRecordingRef.current) return;
+
+        // Debounce to prevent key repeat or rapid bounce
+        const now = Date.now();
+        if (now - lastToggleTimeRef.current < 200) {
+          return;
+        }
+        lastToggleTimeRef.current = now;
+
+        if (isRealtimeRef.current) {
+          console.log('⌨️ [RENDERER] Space pressed - Stopping Realtime in one go');
+          onStopRealtimeRef.current();
+        } else {
+          console.log('⌨️ [RENDERER] Space pressed - Starting Realtime in one go');
+          onStartRealtimeRef.current();
+        }
+        return;
+      }
+
       // Block letter shortcuts if typing in input/textarea
       if (isTyping) return;
 
@@ -175,20 +203,6 @@ export const useKeyboardShortcuts = ({
         if (isRecordingRef.current) {
           console.log('⌨️ [RENDERER] "P" pressed - Stopping recording');
           onStopRecordingRef.current();
-        }
-        return;
-      }
-
-      // Realtime: Space toggles dedicated Realtime speaker-audio listening mode ON / OFF.
-      if (e.code === 'Space' || key === ' ') {
-        e.preventDefault();
-        if (isInitializingRef.current || isRecordingRef.current) return;
-        if (isRealtimeRef.current) {
-          console.log('⌨️ [RENDERER] Space pressed - Stopping Realtime (restoring normal microphone mode)');
-          onStopRealtimeRef.current();
-        } else {
-          console.log('⌨️ [RENDERER] Space pressed - Starting Realtime (speaker audio listening)');
-          onStartRealtimeRef.current();
         }
         return;
       }

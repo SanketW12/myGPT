@@ -52,11 +52,12 @@ export default function ChatUI() {
   });
 
   const {
-    isActive: isRealtime,
+    isActive: isRealtimeActive,
     isListening,
     statusText: realtimeStatus,
     start: startRealtime,
-    stop: stopRealtime
+    stop: stopRealtime,
+    toggle: toggleRealtime
   } = useRealtimeConversation({
     instructions: systemPrompt,
     onUserTranscript: addRealtimeUserMessage,
@@ -66,6 +67,9 @@ export default function ChatUI() {
     onAssistantDelta: appendRealtimeAssistantDelta,
     onAssistantTurnEnd: finishRealtimeAssistantTurn
   });
+
+  // Realtime is considered active if actively connected or listening for speaker audio
+  const isRealtime = isRealtimeActive || isListening;
 
   const {
     isProcessing: isProcessingScreenshot,

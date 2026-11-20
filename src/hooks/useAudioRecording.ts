@@ -72,8 +72,15 @@ export const useAudioRecording = ({ onTranscriptionComplete }: UseAudioRecording
     setIsInitializing(true);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('✅ [useAudioRecording] Microphone stream obtained');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      console.log('✅ [useAudioRecording] Microphone stream obtained with noise suppression');
 
       // 2. Switch to OGG Opus (preferred)
       let mimeType = 'audio/ogg; codecs=opus';

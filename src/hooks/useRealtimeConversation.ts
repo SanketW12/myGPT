@@ -39,15 +39,112 @@ const floatTo16BitPCM = (input: Float32Array) => {
   return buffer;
 };
 
-// Build instructions for live incoming speaker audio monitoring
+// Build instructions for live incoming primary speaker audio monitoring
 const buildRealtimeInstructions = (instructions: string) => {
   return `${instructions.trim()}
 
 ${JAVA_FULL_STACK_REALTIME_RULES}`;
 };
 
+// Set of isolated filler tokens and short vocal reactions to reject
+const FILLER_TOKENS = new Set([
+  'ok', 'okay', 'k', 'kay', 'okie', 'okies',
+  'hmm', 'hm', 'hmmm', 'mhm', 'mmhmm', 'mm-hmm', 'mm',
+  'uh', 'um', 'ah', 'er', 'erm', 'eh',
+  'yeah', 'yep', 'yes', 'yup', 'nope', 'no', 'nah',
+  'right', 'alright', 'sure', 'cool', 'fine', 'nice', 'great', 'good', 'perfect', 'awesome',
+  'oh', 'whoa', 'huh', 'oops', 'wow', 'ha', 'haha', 'gotcha', 'like', 'well', 'so',
+  'actually', 'basically', 'hello', 'hi', 'hey', 'bye', 'goodbye', 'thanks', 'thank'
+]);
+
+// Multi-word conversational acknowledgment / filler phrases
+const FILLER_PHRASES = new Set([
+  'got it',
+  'i see',
+  'sounds good',
+  'makes sense',
+  'thank you',
+  'thanks a lot',
+  'all right',
+  'you know',
+  'fair enough',
+  'no problem',
+  'understood',
+  'okay yeah',
+  'yeah okay',
+  'right okay',
+  'uh huh',
+  'uh yeah',
+  'hmm okay',
+  'ok cool',
+  'alright cool',
+  'good to know'
+]);
+
+// Common grammatical stop words that carry no substantive technical weight alone
+const GRAMMAR_STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
+  'to', 'of', 'in', 'on', 'at', 'by', 'for', 'with', 'about', 'as',
+  'into', 'through', 'during', 'before', 'after', 'above', 'below',
+  'it', 'its', 'this', 'that', 'these', 'those', 'i', 'me', 'my',
+  'you', 'your', 'we', 'our', 'he', 'him', 'she', 'her', 'they', 'them'
+]);
+
+/**
+ * Validates whether transcribed audio represents clear, meaningful speech from the primary speaker
+ * rather than background noise artifacts, isolated conversational fillers ("OK", "Hmm", "Uh"), or ambient murmurs.
+ */
+export const isMeaningfulPrimarySpeech = (rawText: string): boolean => {
+  if (!rawText) return false;
+
+  // 1. Strip transcription non-verbal tags like [laughter], [cough], (whispering), etc.
+  const cleaned = rawText
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-zA-Z0-9\s?]/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  if (!cleaned) return false;
+
+  // 2. Check against multi-word filler/acknowledgment phrases
+  const normalizedPhrase = cleaned.replace(/\s+/g, ' ').replace(/\?/g, '').trim();
+  if (FILLER_PHRASES.has(normalizedPhrase)) {
+    return false;
+  }
+
+  // 3. Tokenize into words
+  const tokens = normalizedPhrase.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+
+  // 4. Check if every single token is a filler token
+  const allFillers = tokens.every((token) => FILLER_TOKENS.has(token));
+  if (allFillers) {
+    return false;
+  }
+
+  // 5. Extract substantive words (not fillers and not purely grammatical stops)
+  const substantiveWords = tokens.filter(
+    (token) => !FILLER_TOKENS.has(token) && !GRAMMAR_STOP_WORDS.has(token)
+  );
+
+  // If no substantive words remain, it carries no meaningful speech content
+  if (substantiveWords.length === 0) {
+    return false;
+  }
+
+  // An isolated 1 substantive word with at most 2 tokens is usually an isolated reaction/fragment,
+  // unless it contains a question mark indicating a question
+  if (substantiveWords.length === 1 && tokens.length <= 2 && !rawText.includes('?')) {
+    return false;
+  }
+
+  return true;
+};
+
 /**
  * Configure Realtime session:
+ * - Near-field neural noise reduction: rejects background noise and secondary voices.
  * - Semantic VAD with 'low' eagerness: waits patiently for natural speech completion instead of cutting off on brief pauses.
  * - create_response: false -> Prevents premature server responses while speaker is still talking;
  *   client-side endpointing coordinator triggers response.create once the complete sentence is finished.
@@ -66,6 +163,9 @@ const buildGaSessionUpdate = (instructions: string) => ({
           type: 'audio/pcm',
           rate: SAMPLE_RATE
         },
+        noise_reduction: {
+          type: 'near_field'
+        },
         transcription: {
           model: 'gpt-4o-mini-transcribe'
         },
@@ -80,17 +180,28 @@ const buildGaSessionUpdate = (instructions: string) => ({
   }
 });
 
+const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+  sampleRate: SAMPLE_RATE,
+  ...(typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
+    ? { voiceIsolation: true as any }
+    : {})
+};
+
 /**
- * Capture system/speaker output audio only.
- * Guaranteed NOT to capture the user's microphone.
+ * Capture primary speaker audio stream with hardware & OS-level acoustic noise suppression,
+ * echo cancellation, and voice isolation enabled.
  */
 const captureSpeakerAudioStream = async (): Promise<MediaStream> => {
-  // 1. Primary: Use getDisplayMedia to capture system audio loopback
+  // 1. Primary: Use getDisplayMedia to capture system audio loopback (interviewer / meeting speaker)
   try {
     console.log('🔊 [Realtime] Requesting system/speaker audio via getDisplayMedia...');
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
-      audio: true
+      audio: AUDIO_CONSTRAINTS
     });
 
     const audioTracks = displayStream.getAudioTracks();
@@ -101,48 +212,54 @@ const captureSpeakerAudioStream = async (): Promise<MediaStream> => {
 
     // Stop and discard video tracks immediately so no screen video is captured or processed
     displayStream.getVideoTracks().forEach((track) => {
-      console.log('🛑 [Realtime] Discarding display video track:', track.label);
       track.stop();
     });
 
     if (audioTracks.length > 0) {
-      return new MediaStream(audioTracks);
+      const track = audioTracks[0];
+      try {
+        await track.applyConstraints?.(AUDIO_CONSTRAINTS);
+      } catch {
+        // ignore if applyConstraints is not supported
+      }
+      return new MediaStream([track]);
     }
-    console.warn('⚠️ [Realtime] No audio track attached to display stream, checking loopback devices...');
   } catch (err) {
-    console.warn('⚠️ [Realtime] getDisplayMedia audio capture failed:', err);
+    console.warn('⚠️ [Realtime] getDisplayMedia audio capture failed or cancelled:', err);
   }
 
   // 2. Fallback: Search for virtual loopback devices (e.g. Teams Audio, BlackHole, Loopback, Stereo Mix)
-  // NEVER fallback to default microphone
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const audioInputs = devices.filter((d) => d.kind === 'audioinput');
-    console.log(
-      '🔊 [Realtime] Checking available audio input devices for loopback:',
-      audioInputs.map((d) => ({ label: d.label, id: d.deviceId }))
-    );
-
     const loopbackDevice = audioInputs.find((d) =>
       /loopback|blackhole|soundflower|stereo mix|virtual|cable|teams/i.test(d.label)
     );
 
     if (loopbackDevice) {
-      console.log(`🔊 [Realtime] Found virtual audio loopback device: ${loopbackDevice.label}`);
+      console.log(`🔊 [Realtime] Using virtual loopback device: ${loopbackDevice.label}`);
       return await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { exact: loopbackDevice.deviceId },
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
+          ...AUDIO_CONSTRAINTS
         }
       });
     }
   } catch (err) {
-    console.warn('⚠️ [Realtime] Fallback loopback device check failed:', err);
+    console.warn('⚠️ [Realtime] Virtual loopback check failed:', err);
   }
 
-  throw new Error('Could not capture speaker/system audio. Please verify screen & audio recording permissions.');
+  // 3. Fallback: Default system audio input with pristine noise suppression & voice isolation
+  try {
+    console.log('🔊 [Realtime] Fallback to primary audio input device with noise suppression...');
+    return await navigator.mediaDevices.getUserMedia({
+      audio: AUDIO_CONSTRAINTS
+    });
+  } catch (err) {
+    console.warn('⚠️ [Realtime] Standard audio fallback failed:', err);
+  }
+
+  throw new Error('Could not access audio stream. Please check audio permissions.');
 };
 
 export const useRealtimeConversation = ({
@@ -168,6 +285,7 @@ export const useRealtimeConversation = ({
   // Audio endpointing & sentence accumulation state
   const accumulatedUtteranceRef = useRef<string>('');
   const hasUnprocessedSpeechRef = useRef<boolean>(false);
+  const hasSurfacedTranscriptRef = useRef<boolean>(false);
   const isGeneratingResponseRef = useRef<boolean>(false);
   const speechActiveRef = useRef<boolean>(false);
   const endpointTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -239,10 +357,12 @@ export const useRealtimeConversation = ({
   }, []);
 
   const cleanup = useCallback(() => {
+    startingRef.current = false;
+    wantActiveRef.current = false;
+
     const ws = wsRef.current;
     wsRef.current = null;
     audioChunkCountRef.current = 0;
-    startingRef.current = false;
 
     if (endpointTimerRef.current) {
       clearTimeout(endpointTimerRef.current);
@@ -250,6 +370,7 @@ export const useRealtimeConversation = ({
     }
     accumulatedUtteranceRef.current = '';
     hasUnprocessedSpeechRef.current = false;
+    hasSurfacedTranscriptRef.current = false;
     isGeneratingResponseRef.current = false;
     speechActiveRef.current = false;
 
@@ -270,7 +391,7 @@ export const useRealtimeConversation = ({
 
   /**
    * Trigger response generation for the complete sentence.
-   * Dispatches input_audio_buffer.commit and response.create once the speaker has finished.
+   * Dispatches input_audio_buffer.commit and response.create once the primary speaker has finished.
    */
   const triggerResponseGeneration = useCallback(() => {
     const ws = wsRef.current;
@@ -279,11 +400,23 @@ export const useRealtimeConversation = ({
     if (isGeneratingResponseRef.current) return;
 
     const sentenceToProcess = accumulatedUtteranceRef.current.trim();
-    console.log('🚀 [Realtime Endpointing] Complete sentence captured, triggering response:', sentenceToProcess);
+
+    // Verify the accumulated speech is meaningful primary speech and not filler reactions or noise
+    if (!isMeaningfulPrimarySpeech(sentenceToProcess)) {
+      console.log('🔇 [Realtime Endpointing] Aborting response — utterance is non-meaningful / isolated filler:', sentenceToProcess);
+      hasUnprocessedSpeechRef.current = false;
+      accumulatedUtteranceRef.current = '';
+      hasSurfacedTranscriptRef.current = false;
+      setStatusText('Listening to primary speaker…');
+      return;
+    }
+
+    console.log('🚀 [Realtime Endpointing] Meaningful primary speaker sentence captured, triggering response:', sentenceToProcess);
 
     isGeneratingResponseRef.current = true;
     hasUnprocessedSpeechRef.current = false;
     accumulatedUtteranceRef.current = '';
+    hasSurfacedTranscriptRef.current = false;
 
     setStatusText('Thinking & Generating…');
     onSpeechStoppedRef.current?.();
@@ -306,7 +439,7 @@ export const useRealtimeConversation = ({
     } catch (err) {
       console.error('❌ response.create failed:', err);
       isGeneratingResponseRef.current = false;
-      setStatusText('Listening to speaker output…');
+      setStatusText('Listening to primary speaker…');
     }
   }, []);
 
@@ -326,6 +459,18 @@ export const useRealtimeConversation = ({
     }
 
     const currentText = accumulatedUtteranceRef.current.trim();
+    if (!currentText) return;
+
+    // If text is not meaningful primary speech (isolated fillers/noise), ignore it
+    if (!isMeaningfulPrimarySpeech(currentText)) {
+      console.log('🔇 [Realtime Endpointing] Discarding non-meaningful speech during check:', currentText);
+      accumulatedUtteranceRef.current = '';
+      hasUnprocessedSpeechRef.current = false;
+      hasSurfacedTranscriptRef.current = false;
+      setStatusText('Listening to primary speaker…');
+      return;
+    }
+
     // Check if the sentence has completed with terminal punctuation
     const hasPunctuation = /[.?!]$/.test(currentText);
 
@@ -348,7 +493,37 @@ export const useRealtimeConversation = ({
 
   const attachSpeakerAudioPipeline = useCallback(
     (stream: MediaStream, captureContext: AudioContext, ws: WebSocket) => {
+      // 1. Source from audio stream
       const source = captureContext.createMediaStreamSource(stream);
+
+      // 2. Highpass filter: Eliminates sub-vocal rumble, 50/60Hz AC hum, desk bumps below 110Hz
+      const highpass = captureContext.createBiquadFilter();
+      highpass.type = 'highpass';
+      highpass.frequency.value = 110;
+      highpass.Q.value = 0.707;
+
+      // 3. Lowpass filter: Eliminates high-frequency hiss, electronic whine, ultrasonic clicks above 7500Hz
+      const lowpass = captureContext.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 7500;
+      lowpass.Q.value = 0.707;
+
+      // 4. Voice Formant Clarity Peaking Filter: Accentuates primary vocal intelligibility band ~1800Hz
+      const clarity = captureContext.createBiquadFilter();
+      clarity.type = 'peaking';
+      clarity.frequency.value = 1800;
+      clarity.Q.value = 1.0;
+      clarity.gain.value = 3.5;
+
+      // 5. Dynamics Compressor: Levels voice dynamics, preventing sudden ambient spikes from saturating
+      const compressor = captureContext.createDynamicsCompressor();
+      compressor.threshold.value = -24;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 4;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.15;
+
+      // 6. ScriptProcessor for software noise gate & PCM streaming
       const processor = captureContext.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1);
       const mute = captureContext.createGain();
       mute.gain.value = 0;
@@ -357,10 +532,20 @@ export const useRealtimeConversation = ({
       processorRef.current = processor;
       muteNodeRef.current = mute;
 
-      source.connect(processor);
-      // ScriptProcessor only runs while connected to destination
+      // Connect DSP chain
+      source.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(clarity);
+      clarity.connect(compressor);
+      compressor.connect(processor);
       processor.connect(mute);
       mute.connect(captureContext.destination);
+
+      // Adaptive Noise Floor & Primary Speaker Energy Gate
+      let adaptiveNoiseFloor = 0.008;
+      const MIN_SPEECH_RMS = 0.016; // Absolute minimum threshold for human speech
+      const HANGOVER_FRAMES = 5; // ~425ms hangover keeps natural sentence endings intact
+      let hangoverRemaining = 0;
 
       processor.onaudioprocess = (event) => {
         if (!wantActiveRef.current) return;
@@ -373,6 +558,39 @@ export const useRealtimeConversation = ({
         const channel = event.inputBuffer.getChannelData(0);
         const copy = new Float32Array(channel.length);
         copy.set(channel);
+
+        // Compute RMS energy of current audio buffer
+        let sumSquares = 0;
+        for (let i = 0; i < copy.length; i++) {
+          sumSquares += copy[i] * copy[i];
+        }
+        const rms = Math.sqrt(sumSquares / copy.length);
+
+        // Adapt noise floor during quiet periods
+        if (rms < adaptiveNoiseFloor * 1.5) {
+          adaptiveNoiseFloor = adaptiveNoiseFloor * 0.95 + rms * 0.05;
+        } else if (rms < 0.03) {
+          adaptiveNoiseFloor = adaptiveNoiseFloor * 0.998 + rms * 0.002;
+        }
+
+        // Dynamic threshold must exceed adaptive noise floor by 2.2x
+        const dynamicThreshold = Math.max(MIN_SPEECH_RMS, adaptiveNoiseFloor * 2.2);
+        const isVoiceActive = rms >= dynamicThreshold;
+
+        if (isVoiceActive) {
+          hangoverRemaining = HANGOVER_FRAMES;
+        } else if (hangoverRemaining > 0) {
+          hangoverRemaining--;
+        }
+
+        const shouldPassAudio = isVoiceActive || hangoverRemaining > 0;
+
+        // If audio is below primary speaker threshold (ambient noise, background chatter, typing),
+        // zero out buffer so the server receives pure digital silence.
+        if (!shouldPassAudio) {
+          copy.fill(0);
+        }
+
         audioChunkCountRef.current += 1;
 
         try {
@@ -405,7 +623,7 @@ export const useRealtimeConversation = ({
     intentionalCloseRef.current = false;
     wantActiveRef.current = true;
     setIsListening(true);
-    setStatusText('Connecting to speaker output audio…');
+    setStatusText('Connecting to primary speaker audio…');
 
     let stream: MediaStream | null = null;
     let captureContext: AudioContext | null = null;
@@ -415,12 +633,25 @@ export const useRealtimeConversation = ({
       audioContextRef.current = captureContext;
       await captureContext.resume();
 
-      // Capture exclusively system/speaker audio (no microphone)
+      if (!wantActiveRef.current || intentionalCloseRef.current) {
+        cleanup();
+        return;
+      }
+
+      // Capture audio stream
       stream = await captureSpeakerAudioStream();
+
+      // Check if user stopped while audio stream was initializing
+      if (!wantActiveRef.current || intentionalCloseRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        cleanup();
+        return;
+      }
+
       streamRef.current = stream;
 
       const audioTrack = stream.getAudioTracks()[0];
-      console.log('🔊 Connected speaker audio track:', audioTrack?.label, 'state:', audioTrack?.readyState);
+      console.log('🔊 Connected primary speaker audio track:', audioTrack?.label, 'state:', audioTrack?.readyState);
 
       const apiKey = import.meta.env.VITE_API_KEY;
       if (!apiKey) {
@@ -434,12 +665,18 @@ export const useRealtimeConversation = ({
       wsRef.current = ws;
 
       ws.onopen = () => {
-        if (!wantActiveRef.current || !captureContext || !stream) return;
+        if (!wantActiveRef.current || intentionalCloseRef.current || !captureContext || !stream) {
+          try {
+            ws.close();
+          } catch {}
+          cleanup();
+          return;
+        }
 
-        console.log('✅ Realtime WS connected (speaker audio mode with intelligent endpointing)');
+        console.log('✅ Realtime WS connected (primary speaker voice isolation with intelligent endpointing)');
         setIsActive(true);
         setIsListening(true);
-        setStatusText('Listening to speaker output…');
+        setStatusText('Listening to primary speaker…');
         startingRef.current = false;
 
         attachSpeakerAudioPipeline(stream, captureContext, ws);
@@ -457,28 +694,34 @@ export const useRealtimeConversation = ({
               break;
 
             case 'input_audio_buffer.speech_started':
-              console.log('🗣️ [Realtime VAD] Speaker speech started');
+              console.log('🗣️ [Realtime VAD] Primary speaker speech started');
               speechActiveRef.current = true;
-              hasUnprocessedSpeechRef.current = true;
               // If an endpoint timer was counting down on a pause, cancel it immediately!
-              // The speaker is still speaking their sentence.
               if (endpointTimerRef.current) {
                 clearTimeout(endpointTimerRef.current);
                 endpointTimerRef.current = null;
                 console.log('⏳ [Realtime VAD] Cancelled endpoint timer — speaker resumed speaking');
               }
-              setStatusText('Listening to speaker speech…');
+              setStatusText('Listening to primary speaker speech…');
               break;
 
             case 'conversation.item.input_audio_transcription.delta':
               if (msg.delta) {
-                hasUnprocessedSpeechRef.current = true;
-                // Cancel pending endpoint timer if active speech delta arrives
                 if (endpointTimerRef.current) {
                   clearTimeout(endpointTimerRef.current);
                   endpointTimerRef.current = null;
                 }
-                onUserTranscriptDeltaRef.current?.(msg.delta);
+                const tentative = `${accumulatedUtteranceRef.current} ${msg.delta}`.trim();
+                // Only stream delta to UI once tentative transcript represents meaningful speech
+                if (isMeaningfulPrimarySpeech(tentative)) {
+                  hasUnprocessedSpeechRef.current = true;
+                  if (!hasSurfacedTranscriptRef.current) {
+                    hasSurfacedTranscriptRef.current = true;
+                    onUserTranscriptRef.current(tentative);
+                  } else {
+                    onUserTranscriptDeltaRef.current?.(msg.delta);
+                  }
+                }
               }
               break;
 
@@ -486,18 +729,33 @@ export const useRealtimeConversation = ({
             case 'conversation.item.input_audio_transcription.done': {
               const transcript = msg.transcript?.trim();
               if (transcript) {
-                hasUnprocessedSpeechRef.current = true;
-                // Accumulate completed segment into full sentence
-                if (!accumulatedUtteranceRef.current.includes(transcript)) {
-                  accumulatedUtteranceRef.current = accumulatedUtteranceRef.current
-                    ? `${accumulatedUtteranceRef.current} ${transcript}`
-                    : transcript;
-                }
-                onUserTranscriptRef.current(accumulatedUtteranceRef.current);
+                const combined = accumulatedUtteranceRef.current
+                  ? (accumulatedUtteranceRef.current.includes(transcript)
+                      ? accumulatedUtteranceRef.current
+                      : `${accumulatedUtteranceRef.current} ${transcript}`.trim())
+                  : transcript;
 
-                // If speech has already paused, schedule endpoint check with finalized text
-                if (!speechActiveRef.current && hasUnprocessedSpeechRef.current) {
-                  scheduleEndpointCheck();
+                // Reject isolated filler words, reactions, and background noise
+                if (!isMeaningfulPrimarySpeech(combined)) {
+                  console.log('🔇 [Realtime Filter] Filtered out non-meaningful speech / isolated filler:', combined);
+                  accumulatedUtteranceRef.current = '';
+                  hasUnprocessedSpeechRef.current = false;
+                  hasSurfacedTranscriptRef.current = false;
+                  if (endpointTimerRef.current) {
+                    clearTimeout(endpointTimerRef.current);
+                    endpointTimerRef.current = null;
+                  }
+                  setStatusText('Listening to primary speaker…');
+                } else {
+                  accumulatedUtteranceRef.current = combined;
+                  hasUnprocessedSpeechRef.current = true;
+                  hasSurfacedTranscriptRef.current = true;
+                  onUserTranscriptRef.current(combined);
+
+                  // If speech has already paused, schedule endpoint check with finalized text
+                  if (!speechActiveRef.current) {
+                    scheduleEndpointCheck();
+                  }
                 }
               }
               break;
@@ -506,8 +764,14 @@ export const useRealtimeConversation = ({
             case 'input_audio_buffer.speech_stopped':
               console.log('🤫 [Realtime VAD] Speech pause detected by VAD');
               speechActiveRef.current = false;
-              if (hasUnprocessedSpeechRef.current) {
+              if (hasUnprocessedSpeechRef.current && isMeaningfulPrimarySpeech(accumulatedUtteranceRef.current)) {
                 scheduleEndpointCheck();
+              } else if (accumulatedUtteranceRef.current && !isMeaningfulPrimarySpeech(accumulatedUtteranceRef.current)) {
+                console.log('🔇 [Realtime VAD] Speech ended but utterance was not meaningful, resetting:', accumulatedUtteranceRef.current);
+                accumulatedUtteranceRef.current = '';
+                hasUnprocessedSpeechRef.current = false;
+                hasSurfacedTranscriptRef.current = false;
+                setStatusText('Listening to primary speaker…');
               }
               break;
 
@@ -528,11 +792,11 @@ export const useRealtimeConversation = ({
               console.log('✅ [Realtime] Response finished');
               isGeneratingResponseRef.current = false;
               onAssistantTurnEndRef.current?.();
-              // Continues listening to speaker output until user disables this mode!
-              setStatusText('Listening to speaker output…');
+              // Continues listening to primary speaker until user disables this mode!
+              setStatusText('Listening to primary speaker…');
 
               // If new speech was detected while the response was concluding, schedule check
-              if (hasUnprocessedSpeechRef.current && !speechActiveRef.current) {
+              if (hasUnprocessedSpeechRef.current && !speechActiveRef.current && isMeaningfulPrimarySpeech(accumulatedUtteranceRef.current)) {
                 scheduleEndpointCheck();
               }
               break;
@@ -540,8 +804,16 @@ export const useRealtimeConversation = ({
             case 'error': {
               const errMsg = msg.error?.message || JSON.stringify(msg.error);
               console.error('❌ Realtime server error:', msg.error);
+              if (/noise_reduction/i.test(errMsg)) {
+                console.warn('⚠️ Realtime noise_reduction error, retrying session without noise_reduction...');
+                try {
+                  const fallback = buildGaSessionUpdate(instructionsRef.current);
+                  delete (fallback.session.audio.input as any).noise_reduction;
+                  ws.send(JSON.stringify(fallback));
+                } catch {}
+              }
               const recoverable =
-                /buffer|cancel|already|empty|too small|no active response/i.test(errMsg || '');
+                /buffer|cancel|already|empty|too small|no active response|noise_reduction/i.test(errMsg || '');
               if (!recoverable) {
                 setStatusText(errMsg || 'Realtime error');
               }
@@ -582,28 +854,32 @@ export const useRealtimeConversation = ({
         }
       };
     } catch (err: any) {
-      console.error('❌ Failed to start Realtime speaker listening:', err);
+      console.error('❌ Failed to start Realtime primary speaker listening:', err);
       wantActiveRef.current = false;
       startingRef.current = false;
-      setStatusText(err?.message || 'Could not start speaker audio listening');
+      setStatusText(err?.message || 'Could not start primary speaker audio listening');
       cleanup();
     }
   }, [attachSpeakerAudioPipeline, cleanup, scheduleEndpointCheck, teardownMedia]);
 
   const stop = useCallback(() => {
+    console.log('🛑 [Realtime] Stopping Realtime immediately in one go');
     wantActiveRef.current = false;
+    startingRef.current = false;
     intentionalCloseRef.current = true;
     setStatusText('');
+    setIsActive(false);
+    setIsListening(false);
     cleanup();
   }, [cleanup]);
 
   const toggle = useCallback(() => {
-    if (wantActiveRef.current || wsRef.current) {
+    if (wantActiveRef.current || startingRef.current || wsRef.current || isActive || isListening) {
       stop();
     } else {
       void start();
     }
-  }, [start, stop]);
+  }, [start, stop, isActive, isListening]);
 
   useEffect(() => {
     const onVisibility = () => {
