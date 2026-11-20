@@ -5,9 +5,9 @@ import {
   JAVA_FULL_STACK_IMAGE_PROMPT
 } from '../prompts/javaFullStackDeveloper';
 
-const rawModel = (import.meta.env.VITE_MODEL || 'gpt-4.1').trim();
-// OpenAI has deprecated legacy 'gpt-4' (returns model_not_found); automatically route to 'gpt-4.1'
-const DEFAULT_MODEL = rawModel === 'gpt-4' ? 'gpt-4.1' : rawModel;
+const rawModel = (import.meta.env.VITE_MODEL || 'gpt-4o').trim();
+// OpenAI deprecated legacy 'gpt-4' (returns 404 deprecated); automatically route to OpenAI's default GPT-4 flagship model 'gpt-4o'
+const DEFAULT_MODEL = rawModel === 'gpt-4' ? 'gpt-4o' : rawModel;
 const MAX_OUTPUT_TOKENS = Number(import.meta.env.VITE_MAX_OUTPUT_TOKENS || 1500);
 
 // Models like gpt-5.5, o1, o3-mini do not support the 'temperature' parameter in OpenAI API
