@@ -97,7 +97,8 @@ export default function ChatUI() {
   });
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Instant scroll during chat updates prevents browser animation frame drops and stutter
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [messages, loading]);
 
   // Handler for cursor corner-drag resizing (reduce or expand window)
