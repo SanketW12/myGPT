@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { JAVA_FULL_STACK_REALTIME_RULES } from '../prompts/javaFullStackDeveloper';
+import { GO_REACT_REALTIME_RULES } from '../prompts/goReactDeveloper';
 
 interface UseRealtimeConversationProps {
   instructions: string;
@@ -43,7 +43,7 @@ const floatTo16BitPCM = (input: Float32Array) => {
 const buildRealtimeInstructions = (instructions: string) => {
   return `${instructions.trim()}
 
-${JAVA_FULL_STACK_REALTIME_RULES}`;
+${GO_REACT_REALTIME_RULES}`;
 };
 
 /**

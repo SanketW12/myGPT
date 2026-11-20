@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import OpenAI from 'openai';
 import {
-  JAVA_FULL_STACK_DEVELOPER_PROMPT,
-  JAVA_FULL_STACK_IMAGE_PROMPT
-} from '../prompts/javaFullStackDeveloper';
+  GO_REACT_DEVELOPER_PROMPT,
+  GO_REACT_IMAGE_PROMPT
+} from '../prompts/goReactDeveloper';
 
 const DEFAULT_MODEL = import.meta.env.VITE_MODEL || 'gpt-5-mini';
 const MAX_OUTPUT_TOKENS = Number(import.meta.env.VITE_MAX_OUTPUT_TOKENS || 1500);
@@ -31,7 +31,7 @@ interface Message {
 
 export const useChat = () => {
   const systemPrompt =
-    import.meta.env.VITE_SYSTEM_PROMPT || JAVA_FULL_STACK_DEVELOPER_PROMPT;
+    import.meta.env.VITE_SYSTEM_PROMPT || GO_REACT_DEVELOPER_PROMPT;
 
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('chatMessages');
@@ -81,7 +81,7 @@ export const useChat = () => {
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
-        const promptText = userText || JAVA_FULL_STACK_IMAGE_PROMPT;
+        const promptText = userText || GO_REACT_IMAGE_PROMPT;
 
         const contentPayload: any[] = [
           {
