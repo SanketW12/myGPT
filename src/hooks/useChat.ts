@@ -225,7 +225,7 @@ export const useChat = () => {
         abortControllerRef.current = controller;
 
         const promptText = userText
-          ? `${userText}\n\n(Context: Focus strictly on the technical elements, code, text, diagrams, or questions in the image. Disregard personal identity.)`
+          ? userText
           : JAVA_FULL_STACK_IMAGE_PROMPT;
 
         // Compress screenshot with high quality (0.92) to keep code text razor sharp
@@ -236,24 +236,57 @@ export const useChat = () => {
         let lastUpdateTime = 0;
         let isRefusalDetected = false;
 
+        const isPotentialRefusalStart = (text: string) => {
+          const lower = text.toLowerCase().trim();
+          return (
+            lower.startsWith("i'm sorry") ||
+            lower.startsWith("i am sorry") ||
+            lower.startsWith("sorry") ||
+            lower.startsWith("i cannot") ||
+            lower.startsWith("i can't") ||
+            lower.startsWith("i'm unable") ||
+            lower.startsWith("i am unable") ||
+            lower.startsWith("i'm not able") ||
+            lower.startsWith("i am not able") ||
+            lower.startsWith("as an ai")
+          );
+        };
+
         const isRefusal = (text: string) => {
           const lower = text.toLowerCase().trim();
           return (
+            lower.includes("unable to analyze") ||
+            lower.includes("cannot analyze") ||
+            lower.includes("can't analyze") ||
+            lower.includes("unable to view") ||
+            lower.includes("cannot view") ||
+            lower.includes("can't view") ||
+            lower.includes("unable to process") ||
+            lower.includes("cannot process") ||
+            lower.includes("can't process") ||
+            lower.includes("can't assist with that") ||
+            lower.includes("cannot assist with that") ||
+            lower.includes("can't assist with this") ||
+            lower.includes("cannot assist with this") ||
+            lower.includes("can't assist with") ||
+            lower.includes("cannot assist with") ||
+            lower.includes("can't help with that") ||
+            lower.includes("cannot help with that") ||
+            lower.includes("can't help with this") ||
+            lower.includes("cannot help with this") ||
+            lower.includes("can't help with") ||
+            lower.includes("cannot help with") ||
+            lower.includes("unable to assist") ||
+            lower.includes("cannot fulfill this request") ||
+            lower.includes("can't fulfill this request") ||
             lower.includes("identifying or analyzing individuals") ||
             lower.includes("identifying individuals") ||
             lower.includes("analyzing individuals") ||
             lower.includes("identify people") ||
             lower.includes("identifying people") ||
-            lower.includes("can't assist with that image") ||
-            lower.includes("can't assist with this image") ||
-            lower.includes("cannot assist with this image") ||
-            lower.includes("can't assist with this image") ||
-            lower.includes("can't assist with image") ||
-            lower.includes("cannot assist with image") ||
-            lower.includes("can't assist with identifying") ||
-            lower.includes("cannot assist with identifying") ||
             lower.includes("making assumptions about people") ||
-            lower.includes("can't help with that image")
+            lower.includes("i'm sorry, but i can't") ||
+            lower.includes("i'm sorry, i can't")
           );
         };
 
@@ -288,6 +321,17 @@ export const useChat = () => {
             const content = chunk.type === 'response.output_text.delta' ? chunk.delta : '';
             if (content) {
               assistantMessage += content;
+
+              if (isPotentialRefusalStart(assistantMessage)) {
+                if (isRefusal(assistantMessage)) {
+                  isRefusalDetected = true;
+                  break;
+                }
+                if (assistantMessage.length < 70) {
+                  continue;
+                }
+              }
+
               if (isFirstChunk) {
                 setLoading(false);
                 isFirstChunk = false;
@@ -328,10 +372,19 @@ export const useChat = () => {
             const content = chunk.choices[0]?.delta?.content || '';
             if (content) {
               assistantMessage += content;
-              if (isRefusal(assistantMessage)) {
-                isRefusalDetected = true;
-                break;
+
+              // Check if model is outputting a refusal
+              if (isPotentialRefusalStart(assistantMessage)) {
+                if (isRefusal(assistantMessage)) {
+                  isRefusalDetected = true;
+                  break;
+                }
+                // Do not update UI while it looks like a refusal starting up (wait for certainty)
+                if (assistantMessage.length < 70) {
+                  continue;
+                }
               }
+
               if (isFirstChunk) {
                 setLoading(false);
                 isFirstChunk = false;
@@ -349,27 +402,64 @@ export const useChat = () => {
         }
 
         if (isRefusalDetected || isRefusal(assistantMessage)) {
-          console.warn('⚠️ OpenAI vision refused image. Running automatic OCR recovery...');
-          updateAssistantMessage('🔍 Processing text and user question from image...');
+          console.warn('⚠️ Vision refusal intercepted. Running automatic seamless fallback...');
           try {
             const worker = await createWorker('eng');
             const ret = await worker.recognize(optimizedImage || imageDataUrl);
             await worker.terminate();
             const extractedText = ret.data?.text?.trim();
-            const ocrContent = extractedText && extractedText.length > 5 ? extractedText : '';
 
-            const promptForFallback = userText
-              ? (ocrContent ? `${userText}\n\n[Extracted text/code from image]:\n${ocrContent}` : userText)
-              : (ocrContent ? `Analyze and solve this technical code/problem from the image:\n\n${ocrContent}` : 'Please provide technical guidance on this question.');
-
-            await handleSendWithFastAPI(promptForFallback);
-            return;
-          } catch (ocrErr) {
-            console.error('OCR recovery error:', ocrErr);
-            if (userText) {
-              await handleSendWithFastAPI(userText);
+            if (extractedText && extractedText.length > 5) {
+              const fallbackPrompt = userText
+                ? `${userText}\n\n[Code/Problem from image]:\n${extractedText}`
+                : `Analyze this technical code and problem statement extracted from the image. Provide the complete solution and code:\n\n${extractedText}`;
+              await handleSendWithFastAPI(fallbackPrompt);
               return;
             }
+          } catch (ocrErr) {
+            console.error('OCR fallback error:', ocrErr);
+          }
+
+          // If OCR didn't find sufficient text, retry with detail: 'low'
+          try {
+            const retryStream = await openaiClient.chat.completions.create(
+              {
+                model: DEFAULT_MODEL,
+                max_completion_tokens: MAX_OUTPUT_TOKENS,
+                ...optionalTemperature,
+                stream: true,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: userText
+                          ? `Task: ${userText}\n\nAnalyze this technical image and provide the direct solution.`
+                          : `Analyze this technical image and provide the complete solution with clean working code.`
+                      },
+                      { type: 'image_url', image_url: { url: optimizedImage, detail: 'low' } }
+                    ]
+                  }
+                ]
+              },
+              { signal: controller.signal }
+            );
+
+            let retryMsg = '';
+            for await (const chunk of retryStream) {
+              const content = chunk.choices[0]?.delta?.content || '';
+              if (content) {
+                retryMsg += content;
+                updateAssistantMessage(retryMsg);
+              }
+            }
+            if (retryMsg.trim().length > 0) {
+              return;
+            }
+          } catch (retryErr) {
+            console.error('Low-detail retry error:', retryErr);
           }
         }
 
