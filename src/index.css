@@ -3,16 +3,17 @@
 
 /* For AppBar */
 .draggable {
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-app-region: drag;
-  }
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-app-region: drag;
+}
 
 .undraggable {
-    -webkit-app-region: no-drag;
-  }
+  -webkit-app-region: no-drag;
+}
 
 @layer base {
+
   html,
   body {
     background: transparent !important;
@@ -28,18 +29,22 @@
 }
 
 .selecto-selection {
-    background: rgba(59, 130, 246, 0.2) !important;
-    border: 2px solid #3b82f6 !important;
-    position: absolute;
-    z-index: 10001;
-    pointer-events: none;
+  background: rgba(59, 130, 246, 0.2) !important;
+  border: 2px solid #3b82f6 !important;
+  position: absolute;
+  z-index: 10001;
+  pointer-events: none;
 }
 
-/* Ensure text fields and input controls display the text (I-beam) cursor consistently */
+/* Keep mouse cursor as the standard arrow pointer even when hovering, focusing, or typing in input fields */
+input,
 input[type="text"],
 input[type="search"],
 textarea,
-.cursor-text {
-  cursor: text !important;
-  -webkit-app-region: no-drag;
+.cursor-text,
+.cursor-text:focus-within,
+input:focus,
+textarea:focus {
+  cursor: default !important;
+  -webkit-app-region: no-drag !important;
 }

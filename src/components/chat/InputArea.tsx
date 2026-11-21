@@ -136,8 +136,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
             {/* Input & Action Controls Row */}
             <div
-                className="undraggable p-3 sm:p-4 pr-6 sm:pr-7 flex items-center cursor-text"
-                style={{ cursor: 'text', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                className="undraggable p-3 sm:p-4 pr-6 sm:pr-7 flex items-center cursor-default"
+                style={{ cursor: 'default', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 onClick={(e) => {
                     // Clicking anywhere in the input field or container focuses the input for typing
                     if (!(e.target as HTMLElement).closest('button')) {
@@ -148,14 +148,14 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 <input
                     ref={inputRef}
                     type="text"
-                    className="undraggable flex-1 min-w-0 bg-transparent border-none outline-none p-2 cursor-text text-white placeholder-gray-400 text-sm select-text"
-                    style={{ cursor: 'text', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="undraggable flex-1 min-w-0 bg-transparent border-none outline-none p-2 cursor-default text-white placeholder-gray-400 text-sm select-text"
+                    style={{ cursor: 'default', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     placeholder={
                         isRealtime
                             ? "Realtime active (Filtering noise & listening to primary speaker)..."
                             : attachedImage
-                            ? "Add text context for this screenshot (or press Enter to send)..."
-                            : "Type a message (Press Shift to speak / send)..."
+                                ? "Add text context for this screenshot (or press Enter to send)..."
+                                : "Type a message (Press Shift to speak / send)..."
                     }
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -188,20 +188,19 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     <button
                         onClick={isRecording ? stopRecording : startRecording}
                         disabled={isRealtime}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all ${
-                            isRealtime
-                                ? 'bg-gray-800 opacity-40 cursor-not-allowed'
-                                : isRecording
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all ${isRealtime
+                            ? 'bg-gray-800 opacity-40 cursor-not-allowed'
+                            : isRecording
                                 ? 'bg-red-600 animate-pulse ring-2 ring-red-400 cursor-pointer'
                                 : 'bg-gray-900 cursor-pointer'
-                        }`}
+                            }`}
                         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         title={
                             isRealtime
                                 ? "Microphone disabled (Realtime primary speaker listening active)"
                                 : isRecording
-                                ? "Stop Listening & Submit (Shift)"
-                                : "Start Listening (Shift)"
+                                    ? "Stop Listening & Submit (Shift)"
+                                    : "Start Listening (Shift)"
                         }
                     >
                         <Mic size={18} color="white" />
@@ -210,9 +209,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     {/* Realtime Speaker Listening (Space) Button */}
                     <button
                         onClick={isRealtime ? stopRealtime : startRealtime}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${
-                            isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
-                        }`}
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
+                            }`}
                         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         title={isRealtime ? 'Stop Realtime (Space or click)' : 'Start Realtime (Space)'}
                     >
