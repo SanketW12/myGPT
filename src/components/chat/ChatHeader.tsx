@@ -114,8 +114,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {/* Reduce / Compact size toggle */}
                 <button
                     onClick={handleToggleSize}
-                    className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/60 rounded-md transition-colors"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/60 rounded-md transition-colors cursor-default"
+                    style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                     title={isCompact ? 'Restore standard size (700x700)' : 'Reduce window size (Compact mode)'}
                 >
                     {isCompact ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
@@ -124,8 +124,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {/* Minimize window */}
                 <button
                     onClick={handleMinimize}
-                    className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/60 rounded-md transition-colors"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/60 rounded-md transition-colors cursor-default"
+                    style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                     title="Minimize window"
                 >
                     <Minus className="w-3.5 h-3.5" />
@@ -134,8 +134,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {/* Close window */}
                 <button
                     onClick={handleClose}
-                    className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-red-600/80 rounded-md transition-colors"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="undraggable p-1.5 text-gray-400 hover:text-white hover:bg-red-600/80 rounded-md transition-colors cursor-default"
+                    style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                     title="Close window"
                 >
                     <X className="w-3.5 h-3.5" />

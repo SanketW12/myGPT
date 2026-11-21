@@ -115,24 +115,32 @@ export default function ChatUI() {
     }
   }, [messages]);
 
-  // Handler for cursor corner-drag resizing (reduce or expand window)
-  const handleCornerResizeStart = (e: React.MouseEvent) => {
+  // Handler for cursor window resizing (corner, right border, bottom border) while keeping normal arrow cursor
+  const handleResizeStart = (direction: 'corner' | 'right' | 'bottom') => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     let prevX = e.screenX;
     let prevY = e.screenY;
 
+    // Keep standard arrow pointer throughout resizing process
+    document.body.classList.add('resizing-window');
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.screenX - prevX;
-      const deltaY = moveEvent.screenY - prevY;
+      const currentDeltaX = moveEvent.screenX - prevX;
+      const currentDeltaY = moveEvent.screenY - prevY;
       prevX = moveEvent.screenX;
       prevY = moveEvent.screenY;
+
+      const deltaX = direction === 'bottom' ? 0 : currentDeltaX;
+      const deltaY = direction === 'right' ? 0 : currentDeltaY;
+
       if (deltaX !== 0 || deltaY !== 0) {
         window?.Main?.resizeWindow?.(deltaX, deltaY);
       }
     };
 
     const handleMouseUp = () => {
+      document.body.classList.remove('resizing-window');
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -200,15 +208,29 @@ export default function ChatUI() {
         onEnterAreaCaptureMode={() => setIsAreaCaptureMode(true)}
       />
 
-      {/* Interactive Bottom-Right Corner Resize Handle */}
+      {/* Interactive Right Edge Resize Handle (Normal Arrow Cursor) */}
       <div
-        className="undraggable absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="Drag corner with cursor to reduce or expand window size"
-        onMouseDown={handleCornerResizeStart}
+        className="undraggable absolute top-10 right-0 bottom-6 w-2 !cursor-default z-40"
+        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
+        onMouseDown={handleResizeStart('right')}
+      />
+
+      {/* Interactive Bottom Edge Resize Handle (Normal Arrow Cursor) */}
+      <div
+        className="undraggable absolute bottom-0 left-0 right-6 h-2 !cursor-default z-40"
+        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
+        onMouseDown={handleResizeStart('bottom')}
+      />
+
+      {/* Interactive Bottom-Right Corner Resize Handle (Normal Arrow Cursor) */}
+      <div
+        className="undraggable absolute bottom-0 right-0 w-6 h-6 !cursor-default z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors select-none"
+        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
+        title="Drag corner to reduce or expand window size"
+        onMouseDown={handleResizeStart('corner')}
       >
         <svg
-          className="w-3 h-3 opacity-60 hover:opacity-100"
+          className="w-3.5 h-3.5 opacity-60 hover:opacity-100 pointer-events-none"
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"
