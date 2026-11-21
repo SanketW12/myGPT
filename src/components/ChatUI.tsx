@@ -15,7 +15,8 @@ import { ChatHeader } from './chat/ChatHeader';
 import { ScreenshotModal } from './chat/ScreenshotModal';
 
 export default function ChatUI() {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const latestQuestionRef = useRef<HTMLDivElement>(null);
+  const prevUserMessageCountRef = useRef(0);
 
   const {
     messages,
@@ -101,9 +102,18 @@ export default function ChatUI() {
   });
 
   useEffect(() => {
-    // Instant scroll during chat updates prevents browser animation frame drops and stutter
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages, loading]);
+    if (messages.length === 0) {
+      prevUserMessageCountRef.current = 0;
+      return;
+    }
+    const userMessageCount = messages.filter((m) => m.role === 'user').length;
+    // Only scroll when a new user question is added, anchoring directly at the question
+    // without automatically jumping/scrolling down to the bottom content during streaming
+    if (userMessageCount > prevUserMessageCountRef.current) {
+      prevUserMessageCountRef.current = userMessageCount;
+      latestQuestionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [messages]);
 
   // Handler for cursor corner-drag resizing (reduce or expand window)
   const handleCornerResizeStart = (e: React.MouseEvent) => {
@@ -165,7 +175,7 @@ export default function ChatUI() {
       <MessageList
         messages={messages}
         loading={loading}
-        messagesEndRef={messagesEndRef}
+        latestQuestionRef={latestQuestionRef}
       />
 
       <InputArea

@@ -11,7 +11,7 @@ interface Message {
 interface MessageListProps {
     messages: Message[];
     loading: boolean;
-    messagesEndRef: React.RefObject<HTMLDivElement>;
+    latestQuestionRef?: React.RefObject<HTMLDivElement>;
 }
 
 // Memoized message item: prevents re-rendering and re-parsing markdown
@@ -64,11 +64,26 @@ const MessageItem = memo(({ msg }: { msg: Message }) => {
 
 MessageItem.displayName = 'MessageItem';
 
-export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading, messagesEndRef }) => {
+export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading, latestQuestionRef }) => {
+    // Locate the latest user question so the viewport can anchor to it
+    let latestUserIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+            latestUserIndex = i;
+            break;
+        }
+    }
+
     return (
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 custom-scrollbar">
             {messages.map((msg, idx) => (
-                <MessageItem key={idx} msg={msg} />
+                <div
+                    key={idx}
+                    ref={idx === latestUserIndex ? latestQuestionRef : undefined}
+                    className="scroll-mt-4"
+                >
+                    <MessageItem msg={msg} />
+                </div>
             ))}
 
             {loading && (
@@ -78,7 +93,7 @@ export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading
                     </div>
                 </div>
             )}
-            <div ref={messagesEndRef} className="h-4" />
+            <div className="h-2" />
         </div>
     );
 });
