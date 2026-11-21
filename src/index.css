@@ -49,6 +49,57 @@ textarea:focus {
   -webkit-app-region: no-drag !important;
 }
 
+/* Keep mouse cursor as standard arrow pointer across all buttons, hovers, and interactive button controls */
+button,
+button *,
+button:hover,
+button:active,
+button:focus,
+button:focus-visible,
+[role="button"],
+[role="button"] *,
+[role="button"]:hover,
+[role="button"]:active,
+[type="button"],
+[type="submit"],
+[type="reset"],
+.cursor-pointer,
+.cursor-pointer *,
+.cursor-pointer:hover,
+.cursor-pointer:active {
+  cursor: default !important;
+}
+
+/* Keep mouse cursor as standard arrow pointer on code blocks, pre, code snippets, and markdown text in bot responses */
+pre,
+code,
+pre *,
+code *,
+pre:hover,
+code:hover,
+pre:active,
+code:active,
+pre:focus,
+code:focus,
+.markdown-container,
+.markdown-container *,
+.wmde-markdown,
+.wmde-markdown *,
+.wmde-markdown pre,
+.wmde-markdown code,
+.wmde-markdown pre *,
+.wmde-markdown code *,
+.wmde-markdown pre .copied,
+.wmde-markdown pre .copied *,
+.wmde-markdown pre:hover,
+.wmde-markdown code:hover,
+.wmde-markdown pre:active,
+.wmde-markdown code:active,
+.w-md-editor-text-pre,
+.w-md-editor-text-pre * {
+  cursor: default !important;
+}
+
 /* Enforce standard arrow pointer cursor during window resizing and over resize grips */
 .cursor-nwse-resize,
 .cursor-nesw-resize,
@@ -73,26 +124,3 @@ body.resizing-window * {
   user-select: none !important;
 }
 
-/* Enforce standard arrow pointer cursor during window resizing and over resize grips */
-.cursor-nwse-resize,
-.cursor-nesw-resize,
-.cursor-ew-resize,
-.cursor-ns-resize,
-.cursor-col-resize,
-.cursor-row-resize,
-.cursor-se-resize,
-.cursor-sw-resize,
-.cursor-ne-resize,
-.cursor-nw-resize,
-.cursor-s-resize,
-.cursor-w-resize,
-.cursor-e-resize,
-.cursor-n-resize {
-  cursor: default !important;
-}
-
-body.resizing-window,
-body.resizing-window * {
-  cursor: default !important;
-  user-select: none !important;
-}

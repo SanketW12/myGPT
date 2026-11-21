@@ -103,7 +103,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
                                 <button
                                     type="button"
                                     onClick={onRemoveAttachment}
-                                    className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full p-0.5 shadow-md transition-transform hover:scale-110"
+                                    className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full p-0.5 shadow-md transition-transform hover:scale-110 cursor-default"
+                                    style={{ cursor: 'default' }}
                                     title="Remove screenshot"
                                 >
                                     <X size={12} strokeWidth={2.5} />
@@ -124,7 +125,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
                         <button
                             type="button"
                             onClick={onRemoveAttachment}
-                            className="text-gray-400 hover:text-red-400 p-1.5 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-gray-800/80 transition-colors shrink-0"
+                            className="text-gray-400 hover:text-red-400 p-1.5 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-gray-800/80 transition-colors shrink-0 cursor-default"
+                            style={{ cursor: 'default' }}
                             title="Discard screenshot attachment"
                         >
                             <Trash2 size={13} />
@@ -177,8 +179,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
                             }
                             inputRef.current?.focus();
                         }}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-default ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title={loading ? "Stop Generating" : attachedImage ? "Send Screenshot & Message" : "Send Message"}
                     >
                         {loading ? <Square size={18} fill="white" /> : <Send size={18} color="white" />}
@@ -188,13 +190,13 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     <button
                         onClick={isRecording ? stopRecording : startRecording}
                         disabled={isRealtime}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all ${isRealtime
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all cursor-default ${isRealtime
                             ? 'bg-gray-800 opacity-40 cursor-not-allowed'
                             : isRecording
-                                ? 'bg-red-600 animate-pulse ring-2 ring-red-400 cursor-pointer'
-                                : 'bg-gray-900 cursor-pointer'
+                                ? 'bg-red-600 animate-pulse ring-2 ring-red-400'
+                                : 'bg-gray-900'
                             }`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title={
                             isRealtime
                                 ? "Microphone disabled (Realtime primary speaker listening active)"
@@ -209,9 +211,9 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     {/* Realtime Speaker Listening (Space) Button */}
                     <button
                         onClick={isRealtime ? stopRealtime : startRealtime}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-default ${isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
                             }`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title={isRealtime ? 'Stop Realtime (Space or click)' : 'Start Realtime (Space)'}
                     >
                         <Radio size={18} color="white" />
@@ -219,8 +221,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
                     <button
                         onClick={onEnterAreaCaptureMode}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-pointer ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-default ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title="Area Screenshot (S)"
                     >
                         <Crop size={18} color="white" />

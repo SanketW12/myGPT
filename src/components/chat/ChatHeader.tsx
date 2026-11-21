@@ -80,11 +80,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <div className="flex items-center gap-2 shrink-0">
                 <button
                     onClick={() => setUseAssistantAPI(!useAssistantAPI)}
-                    className={`undraggable px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm ${useAssistantAPI
+                    className={`undraggable px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-default ${useAssistantAPI
                         ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-900/20'
                         : 'bg-green-600 hover:bg-green-700 text-white shadow-green-900/20'
                         }`}
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                     title="Toggle Assistant / Fast API mode"
                 >
                     <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
@@ -94,8 +94,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {messageCount > 0 && (
                     <button
                         onClick={clearChat}
-                        className="undraggable px-2 py-1 text-xs bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/50 rounded-lg transition-all duration-200 font-medium"
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        className="undraggable px-2 py-1 text-xs bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/50 rounded-lg transition-all duration-200 font-medium cursor-default"
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title="Clear conversation"
                     >
                         Clear
