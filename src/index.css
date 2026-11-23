@@ -34,6 +34,14 @@
   position: absolute;
   z-index: 10001;
   pointer-events: none;
+  cursor: default !important;
+}
+
+/* Keep mouse cursor as standard arrow pointer during screenshot capture mode and crosshair elements */
+.cursor-crosshair,
+[class*="crosshair"],
+.selecto-selection {
+  cursor: default !important;
 }
 
 /* Keep mouse cursor as the standard arrow pointer even when hovering, focusing, or typing in input fields */
