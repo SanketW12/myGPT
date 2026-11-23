@@ -22,6 +22,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             window.Main.on('window-size-changed', (data: { isCompact: boolean }) => {
                 if (data && typeof data.isCompact === 'boolean') {
                     setIsCompact(data.isCompact);
+                    document.body.style.cursor = 'default';
+                    document.documentElement.style.cursor = 'default';
                 }
             });
         }
@@ -31,6 +33,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         if (window?.Main?.toggleWindowSize) {
             window.Main.toggleWindowSize();
             setIsCompact((prev) => !prev);
+            document.body.style.cursor = 'default';
+            document.documentElement.style.cursor = 'default';
         }
     };
 

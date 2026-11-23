@@ -420,6 +420,7 @@ async function createWindow() {
     const newWidth = Math.max(320, Math.round(currentW + deltaX));
     const newHeight = Math.max(350, Math.round(currentH + deltaY));
     window.setSize(newWidth, newHeight);
+    window.setResizable(false);
     applyProtection(window);
     const isCompact = newWidth <= 450;
     event?.sender?.send('window-size-changed', { isCompact, width: newWidth, height: newHeight });
@@ -431,6 +432,7 @@ async function createWindow() {
     const w = Math.max(320, Math.round(newW));
     const h = Math.max(350, Math.round(newH));
     window.setSize(w, h);
+    window.setResizable(false);
     applyProtection(window);
     const isCompact = w <= 450;
     event?.sender?.send('window-size-changed', { isCompact, width: w, height: h });
@@ -448,6 +450,7 @@ async function createWindow() {
       window.setSize(700, 700);
       isCompact = false;
     }
+    window.setResizable(false);
     applyProtection(window);
     event?.sender?.send('window-size-changed', { isCompact, width: window.getBounds().width, height: window.getBounds().height });
   });

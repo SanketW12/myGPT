@@ -1,6 +1,33 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
 @import "tailwindcss";
 
+/* Universally enforce standard arrow cursor across all elements and states */
+*,
+*::before,
+*::after,
+html,
+body,
+#root {
+  cursor: default !important;
+}
+
+*:hover,
+*:active,
+*:focus,
+*:focus-within {
+  cursor: default !important;
+}
+
+/* Ensure WebKit resizers and scrollbar corners also strictly preserve standard arrow cursor */
+::-webkit-resizer,
+::-webkit-scrollbar,
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  cursor: default !important;
+}
+
 /* For AppBar */
 .draggable {
   -webkit-user-select: none;
