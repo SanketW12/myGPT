@@ -184,7 +184,10 @@ export function AreaScreenshot({
 
     if (!image) {
         return (
-            <div className="fixed inset-0 z-[9999] bg-black/80 flex flex-col items-center justify-center text-white backdrop-blur-sm">
+            <div
+                className="fixed inset-0 z-[9999] bg-black/80 flex flex-col items-center justify-center text-white backdrop-blur-sm cursor-default"
+                style={{ cursor: 'default' }}
+            >
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-6 shadow-[0_0_15px_rgba(59,130,246,0.5)]"></div>
                 <p className="text-xl font-semibold mb-8 tracking-wide animate-pulse">Initializing Screen Capture...</p>
 
@@ -193,7 +196,8 @@ export function AreaScreenshot({
                         setIsClosedExternally(true);
                         onCancel();
                     }}
-                    className="px-8 py-3 bg-red-600/20 hover:bg-red-600 border border-red-500/50 rounded-2xl transition-all duration-300 flex items-center gap-3 group"
+                    className="px-8 py-3 bg-red-600/20 hover:bg-red-600 border border-red-500/50 rounded-2xl transition-all duration-300 flex items-center gap-3 group cursor-default"
+                    style={{ cursor: 'default' }}
                 >
                     <span className="text-xl group-hover:rotate-90 transition-transform duration-300">✕</span>
                     <span className="font-medium">Cancel Capture</span>
@@ -203,7 +207,10 @@ export function AreaScreenshot({
     }
 
     return (
-        <div className="fixed inset-0 z-[9999] bg-black cursor-crosshair overflow-hidden touch-none select-none">
+        <div
+            className="fixed inset-0 z-[9999] bg-black cursor-default !cursor-default overflow-hidden touch-none select-none"
+            style={{ cursor: 'default' }}
+        >
             <img
                 src={image.src}
                 alt="Screen Capture"

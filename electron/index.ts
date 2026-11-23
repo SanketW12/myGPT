@@ -76,7 +76,7 @@ async function createWindow() {
     y: 10, // At the top of the screen
     frame: false,
     show: true,
-    resizable: true, // Allow user to resize and reduce the window size
+    resizable: false, // Disables OS-level native window edge double-arrow resize cursors while allowing programmatic resizing via window.setSize
     minWidth: 320,
     minHeight: 350,
     fullscreenable: true,
@@ -213,6 +213,7 @@ async function createWindow() {
     const newWidth = Math.max(320, Math.round(currentW + deltaX));
     const newHeight = Math.max(350, Math.round(currentH + deltaY));
     window.setSize(newWidth, newHeight);
+    window.setResizable(false);
     const isCompact = newWidth <= 450;
     event?.sender?.send('window-size-changed', { isCompact, width: newWidth, height: newHeight });
   });
@@ -223,6 +224,7 @@ async function createWindow() {
     const w = Math.max(320, Math.round(newW));
     const h = Math.max(350, Math.round(newH));
     window.setSize(w, h);
+    window.setResizable(false);
     const isCompact = w <= 450;
     event?.sender?.send('window-size-changed', { isCompact, width: w, height: h });
   });
@@ -239,6 +241,7 @@ async function createWindow() {
       window.setSize(700, 700);
       isCompact = false;
     }
+    window.setResizable(false);
     event?.sender?.send('window-size-changed', { isCompact, width: window.getBounds().width, height: window.getBounds().height });
   });
 

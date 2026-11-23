@@ -40,18 +40,19 @@ export const MessageList: React.FC<MessageListProps> = memo(({ messages, loading
                                 }`}
                         >
                             {msg.role === 'user' ? (
-                                <div className="text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
+                                <div className="text-[15px] leading-relaxed whitespace-pre-wrap font-medium cursor-default" style={{ cursor: 'default' }}>
                                     {msg.content}
                                 </div>
                             ) : (
-                                <div className="markdown-container">
+                                <div className="markdown-container cursor-default" style={{ cursor: 'default' }}>
                                     <MarkdownPreview
                                         source={msg.content}
                                         style={{
                                             backgroundColor: 'transparent',
                                             color: 'inherit',
                                             fontSize: '15px',
-                                            lineHeight: '1.6'
+                                            lineHeight: '1.6',
+                                            cursor: 'default'
                                         }}
                                         wrapperElement={{
                                             "data-color-mode": "dark"

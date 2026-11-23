@@ -136,8 +136,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
             {/* Input & Action Controls Row */}
             <div
-                className="undraggable p-3 sm:p-4 pr-6 sm:pr-7 flex items-center cursor-text"
-                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                className="undraggable p-3 sm:p-4 pr-6 sm:pr-7 flex items-center cursor-default !cursor-default"
+                style={{ cursor: 'default', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 onClick={(e) => {
                     // Clicking anywhere in the input field or container focuses the input for typing
                     if (!(e.target as HTMLElement).closest('button')) {
@@ -148,8 +148,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 <input
                     ref={inputRef}
                     type="text"
-                    className="undraggable flex-1 min-w-0 bg-transparent border-none outline-none p-2 cursor-text text-white placeholder-gray-400 text-sm select-text"
-                    style={{ cursor: 'text', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="undraggable flex-1 min-w-0 bg-transparent border-none outline-none p-2 cursor-default !cursor-default text-white placeholder-gray-400 text-sm select-text"
+                    style={{ cursor: 'default', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     placeholder={
                         isRealtime
                             ? "Realtime active (Listening to speaker output audio)..."
@@ -177,8 +177,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
                             }
                             inputRef.current?.focus();
                         }}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-default ${loading ? 'bg-red-600' : 'bg-gray-900'}`}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title={loading ? "Stop Generating" : attachedImage ? "Send Screenshot & Message" : "Send Message"}
                     >
                         {loading ? <Square size={18} fill="white" /> : <Send size={18} color="white" />}
@@ -188,14 +188,14 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     <button
                         onClick={isRecording ? stopRecording : startRecording}
                         disabled={isRealtime}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all ${
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-all cursor-default ${
                             isRealtime
                                 ? 'bg-gray-800 opacity-40 cursor-not-allowed'
                                 : isRecording
                                 ? 'bg-red-600 animate-pulse ring-2 ring-red-400'
                                 : 'bg-gray-900'
                         }`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title={
                             isRealtime
                                 ? "Microphone disabled (Realtime speaker-listening active)"
@@ -210,10 +210,10 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     {/* Realtime Speaker Listening (Space) Button */}
                     <button
                         onClick={isRealtime ? stopRealtime : startRealtime}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-default ${
                             isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
                         }`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title={isRealtime ? 'Stop Realtime (Space or click)' : 'Start Realtime (Space)'}
                     >
                         <Radio size={18} color="white" />
@@ -221,8 +221,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
                     <button
                         onClick={onEnterAreaCaptureMode}
-                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-default ${isAreaCaptureMode ? 'bg-blue-500 animate-pulse' : 'bg-gray-900'}`}
+                        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
                         title="Area Screenshot (S)"
                     >
                         <Crop size={18} color="white" />

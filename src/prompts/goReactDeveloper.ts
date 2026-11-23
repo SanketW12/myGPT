@@ -1,0 +1,4 @@
+import { FULL_STACK_DEVELOPER_PROMPT } from './fullStackDeveloper';
+
+export const GO_REACT_DEVELOPER_PROMPT = FULL_STACK_DEVELOPER_PROMPT;
+export default FULL_STACK_DEVELOPER_PROMPT;

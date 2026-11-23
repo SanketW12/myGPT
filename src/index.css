@@ -1,16 +1,43 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
 @import "tailwindcss";
 
+/* Universally enforce standard arrow cursor across all elements and states */
+*,
+*::before,
+*::after,
+html,
+body,
+#root {
+  cursor: default !important;
+}
+
+*:hover,
+*:active,
+*:focus,
+*:focus-within {
+  cursor: default !important;
+}
+
+/* Ensure WebKit resizers and scrollbar corners also strictly preserve standard arrow cursor */
+::-webkit-resizer,
+::-webkit-scrollbar,
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  cursor: default !important;
+}
+
 /* For AppBar */
 .draggable {
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-app-region: drag;
-  }
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-app-region: drag;
+}
 
 .undraggable {
-    -webkit-app-region: no-drag;
-  }
+  -webkit-app-region: no-drag;
+}
 
 @layer base {
   html,
@@ -28,18 +55,61 @@
 }
 
 .selecto-selection {
-    background: rgba(59, 130, 246, 0.2) !important;
-    border: 2px solid #3b82f6 !important;
-    position: absolute;
-    z-index: 10001;
-    pointer-events: none;
+  background: rgba(59, 130, 246, 0.2) !important;
+  border: 2px solid #3b82f6 !important;
+  position: absolute;
+  z-index: 10001;
+  pointer-events: none;
+  cursor: default !important;
 }
 
-/* Ensure text fields and input controls display the text (I-beam) cursor consistently */
+/* Enforce standard arrow pointer cursor across all interactive and resize controls */
+input,
 input[type="text"],
 input[type="search"],
 textarea,
-.cursor-text {
-  cursor: text !important;
+button,
+button *,
+[role="button"],
+[role="button"] *,
+.cursor-text,
+.cursor-pointer,
+.cursor-grab,
+.cursor-grabbing,
+.cursor-crosshair,
+.cursor-nwse-resize,
+.cursor-nesw-resize,
+.cursor-ew-resize,
+.cursor-ns-resize,
+.cursor-col-resize,
+.cursor-row-resize,
+.cursor-se-resize,
+.cursor-sw-resize,
+.cursor-ne-resize,
+.cursor-nw-resize,
+.cursor-s-resize,
+.cursor-w-resize,
+.cursor-e-resize,
+.cursor-n-resize,
+[class*="resize"],
+[class*="crosshair"],
+pre,
+code,
+pre *,
+code *,
+.markdown-container,
+.markdown-container *,
+.wmde-markdown,
+.wmde-markdown *,
+.w-md-editor-text-pre,
+.w-md-editor-text-pre * {
+  cursor: default !important;
   -webkit-app-region: no-drag;
 }
+
+body.resizing-window,
+body.resizing-window * {
+  cursor: default !important;
+  user-select: none !important;
+}
+

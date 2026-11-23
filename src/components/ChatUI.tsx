@@ -107,6 +107,8 @@ export default function ChatUI() {
     let prevX = e.screenX;
     let prevY = e.screenY;
 
+    document.body.classList.add('resizing-window');
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.screenX - prevX;
       const deltaY = moveEvent.screenY - prevY;
@@ -118,6 +120,9 @@ export default function ChatUI() {
     };
 
     const handleMouseUp = () => {
+      document.body.classList.remove('resizing-window');
+      document.body.style.cursor = 'default';
+      document.documentElement.style.cursor = 'default';
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -127,7 +132,10 @@ export default function ChatUI() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-900/50 text-white font-sans antialiased overflow-hidden relative">
+    <div
+      className="flex flex-col h-screen w-full bg-gray-900/50 text-white font-sans antialiased overflow-hidden relative cursor-default !cursor-default"
+      style={{ cursor: 'default' }}
+    >
       {isAreaCaptureMode && (
         <AreaScreenshot
           onCapture={(blob) => {
@@ -185,15 +193,14 @@ export default function ChatUI() {
         onEnterAreaCaptureMode={() => setIsAreaCaptureMode(true)}
       />
 
-      {/* Interactive Bottom-Right Corner Resize Handle */}
+      {/* Interactive Bottom-Right Corner Resize Handle (Normal Arrow Cursor) */}
       <div
-        className="undraggable absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="Drag corner with cursor to reduce or expand window size"
+        className="undraggable absolute bottom-0 right-0 w-6 h-6 !cursor-default z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors select-none"
+        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
         onMouseDown={handleCornerResizeStart}
       >
         <svg
-          className="w-3 h-3 opacity-60 hover:opacity-100"
+          className="w-3.5 h-3.5 opacity-60 hover:opacity-100 pointer-events-none"
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"
