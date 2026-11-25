@@ -203,7 +203,10 @@ export function AreaScreenshot({
     }
 
     return (
-        <div className="fixed inset-0 z-[9999] bg-black cursor-crosshair overflow-hidden touch-none select-none">
+        <div
+            className="fixed inset-0 z-[9999] bg-black cursor-default overflow-hidden touch-none select-none"
+            style={{ cursor: 'default' }}
+        >
             <img
                 src={image.src}
                 alt="Screen Capture"

@@ -188,9 +188,9 @@ export default function ChatUI() {
 
       {/* Interactive Bottom-Right Corner Resize Handle */}
       <div
-        className="undraggable absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="Drag corner with cursor to reduce or expand window size"
+        className="undraggable absolute bottom-0 right-0 w-5 h-5 cursor-default z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors"
+        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
+        title="Drag corner to reduce or expand window size"
         onMouseDown={handleCornerResizeStart}
       >
         <svg

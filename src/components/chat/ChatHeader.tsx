@@ -83,8 +83,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     return (
         <div
             onPointerDown={handleDragStart}
-            className="w-full px-3 py-2 border-b border-gray-700/50 bg-gray-800/80 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 select-none cursor-grab active:cursor-grabbing"
-            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            className="w-full px-3 py-2 border-b border-gray-700/50 bg-gray-800/80 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 select-none cursor-default"
+            style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
         >
             {/* Left section: Mode toggle & Clear button */}
             <div className="flex items-center gap-2 shrink-0">
@@ -115,8 +115,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
             {/* Center section: Clean flexible spacer (draggable) */}
             <div
-                className="flex-1 h-full mx-2 cursor-grab active:cursor-grabbing"
-                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                className="flex-1 h-full mx-2 cursor-default"
+                style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
             />
 
             {/* Right section: Window Controls (Reduce Size, Minimize, Close) */}
