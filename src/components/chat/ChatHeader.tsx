@@ -42,16 +42,21 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         window?.Main?.Close?.();
     };
 
-    // Programmatic cursor drag fallback handler for moving window with cursor
-    const handleDragMouseDown = (e: React.MouseEvent) => {
+    // Programmatic cursor drag handler for smooth window movement anywhere on screen (including over top menu bar)
+    const handleDragStart = (e: React.PointerEvent) => {
         // Only trigger on primary (left) mouse button and ignore interactive elements
         if (e.button !== 0) return;
-        if ((e.target as HTMLElement).closest('.undraggable')) return;
+        if ((e.target as HTMLElement).closest('.undraggable, button, input, textarea')) return;
+
+        const target = e.currentTarget;
+        try {
+            target.setPointerCapture(e.pointerId);
+        } catch (_) {}
 
         let prevX = e.screenX;
         let prevY = e.screenY;
 
-        const handleMouseMove = (moveEvent: MouseEvent) => {
+        const handlePointerMove = (moveEvent: PointerEvent) => {
             const deltaX = moveEvent.screenX - prevX;
             const deltaY = moveEvent.screenY - prevY;
             prevX = moveEvent.screenX;
@@ -61,20 +66,25 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             }
         };
 
-        const handleMouseUp = () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+        const handlePointerUp = (upEvent: PointerEvent) => {
+            try {
+                target.releasePointerCapture(upEvent.pointerId);
+            } catch (_) {}
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
         };
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
     };
 
     return (
         <div
-            onMouseDown={handleDragMouseDown}
-            className="draggable w-full px-3 py-2 border-b border-gray-700/50 bg-gray-800/80 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 select-none cursor-grab active:cursor-grabbing"
-            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+            onPointerDown={handleDragStart}
+            className="w-full px-3 py-2 border-b border-gray-700/50 bg-gray-800/80 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 select-none cursor-grab active:cursor-grabbing"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
             {/* Left section: Mode toggle & Clear button */}
             <div className="flex items-center gap-2 shrink-0">
@@ -105,8 +115,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
             {/* Center section: Clean flexible spacer (draggable) */}
             <div
-                className="draggable flex-1 h-full mx-2 cursor-grab active:cursor-grabbing"
-                style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+                className="flex-1 h-full mx-2 cursor-grab active:cursor-grabbing"
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             />
 
             {/* Right section: Window Controls (Reduce Size, Minimize, Close) */}
