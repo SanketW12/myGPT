@@ -81,68 +81,25 @@ const buildGaSessionUpdate = (instructions: string) => ({
 });
 
 /**
- * Capture system/speaker output audio only.
- * Guaranteed NOT to capture the user's microphone.
+ * Capture audio stream directly with hardware/OS echo cancellation and noise suppression.
+ * Starts instantaneously on single click without screen share pickers or dialogs.
  */
-const captureSpeakerAudioStream = async (): Promise<MediaStream> => {
-  // 1. Primary: Use getDisplayMedia to capture system audio loopback
+const captureAudioStream = async (): Promise<MediaStream> => {
   try {
-    console.log('🔊 [Realtime] Requesting system/speaker audio via getDisplayMedia...');
-    const displayStream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: true
+    console.log('🎤 [Realtime] Acquiring audio stream with noise suppression & echo cancellation...');
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: SAMPLE_RATE,
+        channelCount: 1
+      }
     });
-
-    const audioTracks = displayStream.getAudioTracks();
-    console.log(
-      `🔊 [Realtime] getDisplayMedia provided ${audioTracks.length} audio track(s):`,
-      audioTracks.map((t) => t.label)
-    );
-
-    // Stop and discard video tracks immediately so no screen video is captured or processed
-    displayStream.getVideoTracks().forEach((track) => {
-      console.log('🛑 [Realtime] Discarding display video track:', track.label);
-      track.stop();
-    });
-
-    if (audioTracks.length > 0) {
-      return new MediaStream(audioTracks);
-    }
-    console.warn('⚠️ [Realtime] No audio track attached to display stream, checking loopback devices...');
   } catch (err) {
-    console.warn('⚠️ [Realtime] getDisplayMedia audio capture failed:', err);
+    console.warn('⚠️ [Realtime] Standard getUserMedia audio failed, attempting fallback:', err);
+    return await navigator.mediaDevices.getUserMedia({ audio: true });
   }
-
-  // 2. Fallback: Search for virtual loopback devices (e.g. Teams Audio, BlackHole, Loopback, Stereo Mix)
-  // NEVER fallback to default microphone
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter((d) => d.kind === 'audioinput');
-    console.log(
-      '🔊 [Realtime] Checking available audio input devices for loopback:',
-      audioInputs.map((d) => ({ label: d.label, id: d.deviceId }))
-    );
-
-    const loopbackDevice = audioInputs.find((d) =>
-      /loopback|blackhole|soundflower|stereo mix|virtual|cable|teams/i.test(d.label)
-    );
-
-    if (loopbackDevice) {
-      console.log(`🔊 [Realtime] Found virtual audio loopback device: ${loopbackDevice.label}`);
-      return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: { exact: loopbackDevice.deviceId },
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('⚠️ [Realtime] Fallback loopback device check failed:', err);
-  }
-
-  throw new Error('Could not capture speaker/system audio. Please verify screen & audio recording permissions.');
 };
 
 export const useRealtimeConversation = ({
@@ -172,9 +129,8 @@ export const useRealtimeConversation = ({
   const speechActiveRef = useRef<boolean>(false);
   const endpointTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const sessionIdRef = useRef<number>(0);
   const wantActiveRef = useRef(false);
-  const intentionalCloseRef = useRef(false);
-  const startingRef = useRef(false);
   const audioChunkCountRef = useRef(0);
 
   const onUserTranscriptRef = useRef(onUserTranscript);
@@ -239,10 +195,12 @@ export const useRealtimeConversation = ({
   }, []);
 
   const cleanup = useCallback(() => {
+    sessionIdRef.current += 1;
+    wantActiveRef.current = false;
+
     const ws = wsRef.current;
     wsRef.current = null;
     audioChunkCountRef.current = 0;
-    startingRef.current = false;
 
     if (endpointTimerRef.current) {
       clearTimeout(endpointTimerRef.current);
@@ -255,10 +213,14 @@ export const useRealtimeConversation = ({
 
     teardownMedia();
 
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      intentionalCloseRef.current = true;
+    if (ws) {
+      // Detach all listeners before closing so closing events never fire into this or future sessions
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
       try {
-        ws.close();
+        ws.close(1000, 'Normal Closure');
       } catch {
         // ignore
       }
@@ -349,6 +311,25 @@ export const useRealtimeConversation = ({
   const attachSpeakerAudioPipeline = useCallback(
     (stream: MediaStream, captureContext: AudioContext, ws: WebSocket) => {
       const source = captureContext.createMediaStreamSource(stream);
+
+      // DSP Filter 1: 85Hz Highpass cuts out low-frequency rumble, table thumps, HVAC hum
+      const highpass = captureContext.createBiquadFilter();
+      highpass.type = 'highpass';
+      highpass.frequency.value = 85;
+
+      // DSP Filter 2: 4500Hz Lowpass cuts high-frequency hiss, fan whine, electrical noise
+      const lowpass = captureContext.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 4500;
+
+      // DSP Filter 3: DynamicsCompressor balances speaker loudness and stabilizes input levels
+      const compressor = captureContext.createDynamicsCompressor();
+      compressor.threshold.value = -24;
+      compressor.knee.value = 30;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.25;
+
       const processor = captureContext.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1);
       const mute = captureContext.createGain();
       mute.gain.value = 0;
@@ -357,8 +338,11 @@ export const useRealtimeConversation = ({
       processorRef.current = processor;
       muteNodeRef.current = mute;
 
-      source.connect(processor);
-      // ScriptProcessor only runs while connected to destination
+      // Chain: source -> highpass -> lowpass -> compressor -> processor -> mute -> destination
+      source.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(compressor);
+      compressor.connect(processor);
       processor.connect(mute);
       mute.connect(captureContext.destination);
 
@@ -371,6 +355,18 @@ export const useRealtimeConversation = ({
         }
 
         const channel = event.inputBuffer.getChannelData(0);
+
+        // Noise gate check: compute RMS to ignore quiet background whispers/clicks
+        let sumSquares = 0;
+        for (let i = 0; i < channel.length; i++) {
+          sumSquares += channel[i] * channel[i];
+        }
+        const rms = Math.sqrt(sumSquares / channel.length);
+        if (rms < 0.004) {
+          // Low background room noise; skip streaming to keep silence clean
+          return;
+        }
+
         const copy = new Float32Array(channel.length);
         copy.set(channel);
         audioChunkCountRef.current += 1;
@@ -389,8 +385,8 @@ export const useRealtimeConversation = ({
 
       stream.getAudioTracks().forEach((track) => {
         track.onended = () => {
-          console.warn('🔊 Speaker audio track ended unexpectedly');
-          setStatusText('Speaker audio disconnected');
+          console.warn('🔊 Audio track ended unexpectedly');
+          setStatusText('');
           wantActiveRef.current = false;
           cleanup();
         };
@@ -400,27 +396,40 @@ export const useRealtimeConversation = ({
   );
 
   const start = useCallback(async () => {
-    if (wantActiveRef.current || startingRef.current || wsRef.current) return;
-    startingRef.current = true;
-    intentionalCloseRef.current = false;
+    if (wantActiveRef.current) return;
+
+    const currentSessionId = ++sessionIdRef.current;
     wantActiveRef.current = true;
+    setIsActive(true);
     setIsListening(true);
-    setStatusText('Connecting to speaker output audio…');
+    setStatusText('Connecting to audio…');
 
     let stream: MediaStream | null = null;
     let captureContext: AudioContext | null = null;
 
     try {
-      captureContext = new AudioContext({ sampleRate: SAMPLE_RATE });
-      audioContextRef.current = captureContext;
-      await captureContext.resume();
+      // 1. Directly acquire noise-suppressed audio stream (starts immediately)
+      stream = await captureAudioStream();
 
-      // Capture exclusively system/speaker audio (no microphone)
-      stream = await captureSpeakerAudioStream();
+      // Check if user clicked to turn OFF while stream was initializing
+      if (!wantActiveRef.current || sessionIdRef.current !== currentSessionId) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
 
-      const audioTrack = stream.getAudioTracks()[0];
-      console.log('🔊 Connected speaker audio track:', audioTrack?.label, 'state:', audioTrack?.readyState);
+      captureContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+      audioContextRef.current = captureContext;
+      if (captureContext.state === 'suspended') {
+        await captureContext.resume();
+      }
+
+      // Check cancellation again
+      if (!wantActiveRef.current || sessionIdRef.current !== currentSessionId) {
+        stream.getTracks().forEach((t) => t.stop());
+        void captureContext.close();
+        return;
+      }
 
       const apiKey = import.meta.env.VITE_API_KEY;
       if (!apiKey) {
@@ -434,19 +443,24 @@ export const useRealtimeConversation = ({
       wsRef.current = ws;
 
       ws.onopen = () => {
-        if (!wantActiveRef.current || !captureContext || !stream) return;
+        if (!wantActiveRef.current || sessionIdRef.current !== currentSessionId || !captureContext || !stream) {
+          try {
+            ws.close(1000, 'Normal Closure');
+          } catch {}
+          return;
+        }
 
-        console.log('✅ Realtime WS connected (speaker audio mode with intelligent endpointing)');
+        console.log('✅ Realtime WS connected');
         setIsActive(true);
         setIsListening(true);
-        setStatusText('Listening to speaker output…');
-        startingRef.current = false;
+        setStatusText('Listening to speaker speech…');
 
         attachSpeakerAudioPipeline(stream, captureContext, ws);
         ws.send(JSON.stringify(buildGaSessionUpdate(instructionsRef.current)));
       };
 
       ws.onmessage = (event) => {
+        if (!wantActiveRef.current || sessionIdRef.current !== currentSessionId) return;
         try {
           const msg = JSON.parse(event.data);
 
@@ -460,8 +474,6 @@ export const useRealtimeConversation = ({
               console.log('🗣️ [Realtime VAD] Speaker speech started');
               speechActiveRef.current = true;
               hasUnprocessedSpeechRef.current = true;
-              // If an endpoint timer was counting down on a pause, cancel it immediately!
-              // The speaker is still speaking their sentence.
               if (endpointTimerRef.current) {
                 clearTimeout(endpointTimerRef.current);
                 endpointTimerRef.current = null;
@@ -473,7 +485,6 @@ export const useRealtimeConversation = ({
             case 'conversation.item.input_audio_transcription.delta':
               if (msg.delta) {
                 hasUnprocessedSpeechRef.current = true;
-                // Cancel pending endpoint timer if active speech delta arrives
                 if (endpointTimerRef.current) {
                   clearTimeout(endpointTimerRef.current);
                   endpointTimerRef.current = null;
@@ -487,7 +498,6 @@ export const useRealtimeConversation = ({
               const transcript = msg.transcript?.trim();
               if (transcript) {
                 hasUnprocessedSpeechRef.current = true;
-                // Accumulate completed segment into full sentence
                 if (!accumulatedUtteranceRef.current.includes(transcript)) {
                   accumulatedUtteranceRef.current = accumulatedUtteranceRef.current
                     ? `${accumulatedUtteranceRef.current} ${transcript}`
@@ -495,7 +505,6 @@ export const useRealtimeConversation = ({
                 }
                 onUserTranscriptRef.current(accumulatedUtteranceRef.current);
 
-                // If speech has already paused, schedule endpoint check with finalized text
                 if (!speechActiveRef.current && hasUnprocessedSpeechRef.current) {
                   scheduleEndpointCheck();
                 }
@@ -528,10 +537,8 @@ export const useRealtimeConversation = ({
               console.log('✅ [Realtime] Response finished');
               isGeneratingResponseRef.current = false;
               onAssistantTurnEndRef.current?.();
-              // Continues listening to speaker output until user disables this mode!
               setStatusText('Listening to speaker output…');
 
-              // If new speech was detected while the response was concluding, schedule check
               if (hasUnprocessedSpeechRef.current && !speechActiveRef.current) {
                 scheduleEndpointCheck();
               }
@@ -557,53 +564,51 @@ export const useRealtimeConversation = ({
       };
 
       ws.onerror = (err) => {
+        if (!wantActiveRef.current || sessionIdRef.current !== currentSessionId) return;
         console.error('❌ Realtime WS error', err);
-        setStatusText('Realtime connection error');
       };
 
       ws.onclose = (event) => {
-        console.warn('🛑 Realtime WS closed', event.code, event.reason || '(no reason)');
+        // If closed intentionally by user turning it off or session changed, cleanly ignore
+        if (!wantActiveRef.current || sessionIdRef.current !== currentSessionId) {
+          return;
+        }
+
+        console.warn('🛑 Realtime WS closed unexpectedly', event.code, event.reason || '(no reason)');
         wsRef.current = null;
-        startingRef.current = false;
-
-        const wasIntentional = intentionalCloseRef.current;
-        intentionalCloseRef.current = false;
-
         teardownMedia();
         setIsActive(false);
         setIsListening(false);
-
-        if (!wasIntentional && wantActiveRef.current) {
-          wantActiveRef.current = false;
-          setStatusText(`Disconnected (${event.code}). Click to restart.`);
-        } else {
-          wantActiveRef.current = false;
-          setStatusText('');
-        }
+        wantActiveRef.current = false;
+        setStatusText(`Disconnected (${event.code}). Click to restart.`);
       };
     } catch (err: any) {
-      console.error('❌ Failed to start Realtime speaker listening:', err);
+      if (sessionIdRef.current !== currentSessionId) return;
+      console.error('❌ Failed to start Realtime listening:', err);
       wantActiveRef.current = false;
-      startingRef.current = false;
-      setStatusText(err?.message || 'Could not start speaker audio listening');
+      setIsActive(false);
+      setIsListening(false);
+      setStatusText(err?.message || 'Could not start audio listening');
       cleanup();
     }
   }, [attachSpeakerAudioPipeline, cleanup, scheduleEndpointCheck, teardownMedia]);
 
   const stop = useCallback(() => {
     wantActiveRef.current = false;
-    intentionalCloseRef.current = true;
+    sessionIdRef.current += 1;
     setStatusText('');
+    setIsActive(false);
+    setIsListening(false);
     cleanup();
   }, [cleanup]);
 
   const toggle = useCallback(() => {
-    if (wantActiveRef.current || wsRef.current) {
+    if (wantActiveRef.current || isActive) {
       stop();
     } else {
       void start();
     }
-  }, [start, stop]);
+  }, [isActive, start, stop]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -628,7 +633,6 @@ export const useRealtimeConversation = ({
   useEffect(() => {
     return () => {
       wantActiveRef.current = false;
-      intentionalCloseRef.current = true;
       cleanup();
     };
   }, [cleanup]);

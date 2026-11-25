@@ -43,46 +43,42 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     };
 
     // Programmatic cursor drag handler for smooth window movement anywhere on screen (including over top menu bar)
-    const handleDragStart = (e: React.PointerEvent) => {
+    const handleDragStart = (e: React.MouseEvent) => {
         // Only trigger on primary (left) mouse button and ignore interactive elements
         if (e.button !== 0) return;
         if ((e.target as HTMLElement).closest('.undraggable, button, input, textarea')) return;
 
-        const target = e.currentTarget;
-        try {
-            target.setPointerCapture(e.pointerId);
-        } catch (_) {}
+        let prevX = Number.isFinite(e.screenX) ? e.screenX : e.clientX;
+        let prevY = Number.isFinite(e.screenY) ? e.screenY : e.clientY;
+        if (!Number.isFinite(prevX) || !Number.isFinite(prevY)) return;
 
-        let prevX = e.screenX;
-        let prevY = e.screenY;
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const currentX = Number.isFinite(moveEvent.screenX) ? moveEvent.screenX : moveEvent.clientX;
+            const currentY = Number.isFinite(moveEvent.screenY) ? moveEvent.screenY : moveEvent.clientY;
+            if (!Number.isFinite(currentX) || !Number.isFinite(currentY)) return;
 
-        const handlePointerMove = (moveEvent: PointerEvent) => {
-            const deltaX = moveEvent.screenX - prevX;
-            const deltaY = moveEvent.screenY - prevY;
-            prevX = moveEvent.screenX;
-            prevY = moveEvent.screenY;
-            if (deltaX !== 0 || deltaY !== 0) {
+            const deltaX = currentX - prevX;
+            const deltaY = currentY - prevY;
+            prevX = currentX;
+            prevY = currentY;
+
+            if (Number.isFinite(deltaX) && Number.isFinite(deltaY) && (deltaX !== 0 || deltaY !== 0)) {
                 window?.Main?.dragWindow?.(deltaX, deltaY);
             }
         };
 
-        const handlePointerUp = (upEvent: PointerEvent) => {
-            try {
-                target.releasePointerCapture(upEvent.pointerId);
-            } catch (_) {}
-            window.removeEventListener('pointermove', handlePointerMove);
-            window.removeEventListener('pointerup', handlePointerUp);
-            window.removeEventListener('pointercancel', handlePointerUp);
+        const handleMouseUp = () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
         };
 
-        window.addEventListener('pointermove', handlePointerMove);
-        window.addEventListener('pointerup', handlePointerUp);
-        window.addEventListener('pointercancel', handlePointerUp);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
     };
 
     return (
         <div
-            onPointerDown={handleDragStart}
+            onMouseDown={handleDragStart}
             className="w-full px-3 py-2 border-b border-gray-700/50 bg-gray-800/80 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 select-none cursor-default"
             style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
         >

@@ -105,15 +105,20 @@ export default function ChatUI() {
   const handleCornerResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    let prevX = e.screenX;
-    let prevY = e.screenY;
+    let prevX = Number.isFinite(e.screenX) ? e.screenX : e.clientX;
+    let prevY = Number.isFinite(e.screenY) ? e.screenY : e.clientY;
+    if (!Number.isFinite(prevX) || !Number.isFinite(prevY)) return;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.screenX - prevX;
-      const deltaY = moveEvent.screenY - prevY;
-      prevX = moveEvent.screenX;
-      prevY = moveEvent.screenY;
-      if (deltaX !== 0 || deltaY !== 0) {
+      const currentX = Number.isFinite(moveEvent.screenX) ? moveEvent.screenX : moveEvent.clientX;
+      const currentY = Number.isFinite(moveEvent.screenY) ? moveEvent.screenY : moveEvent.clientY;
+      if (!Number.isFinite(currentX) || !Number.isFinite(currentY)) return;
+
+      const deltaX = currentX - prevX;
+      const deltaY = currentY - prevY;
+      prevX = currentX;
+      prevY = currentY;
+      if (Number.isFinite(deltaX) && Number.isFinite(deltaY) && (deltaX !== 0 || deltaY !== 0)) {
         window?.Main?.resizeWindow?.(deltaX, deltaY);
       }
     };

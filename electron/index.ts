@@ -405,27 +405,52 @@ async function createWindow() {
   });
 
   // Drag window via cursor movement
-  ipcMain.on('drag-window', (_event, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
+  ipcMain.on('drag-window', (_event, data: { deltaX?: number; deltaY?: number }) => {
     if (!window || window.isDestroyed()) return;
-    const [x, y] = window.getPosition();
-    const { height } = window.getBounds();
-    const newX = Math.round(x + deltaX);
-    // Allow window to be dragged above the top menu bar / top of screen freely,
-    // keeping at least 40px reachable so it never gets lost off-screen.
-    const newY = Math.max(-height + 40, Math.round(y + deltaY));
-    window.setPosition(newX, newY);
+    if (!data) return;
+    const deltaX = Number(data.deltaX);
+    const deltaY = Number(data.deltaY);
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+    if (deltaX === 0 && deltaY === 0) return;
+
+    try {
+      const [currentX, currentY] = window.getPosition();
+      if (!Number.isFinite(currentX) || !Number.isFinite(currentY)) return;
+
+      const { height } = window.getBounds();
+      const newX = Math.round(currentX + deltaX);
+      const newY = Math.max(-height + 40, Math.round(currentY + deltaY));
+
+      if (Number.isFinite(newX) && Number.isFinite(newY)) {
+        window.setPosition(newX, newY);
+      }
+    } catch (err) {
+      console.error('❌ [MAIN] Error in drag-window handler:', err);
+    }
   });
 
   // Resize window by delta (e.g. from corner resize grip)
-  ipcMain.on('resize-window', (event, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
-    if (!window) return;
-    const { width: currentW, height: currentH } = window.getBounds();
-    const newWidth = Math.max(320, Math.round(currentW + deltaX));
-    const newHeight = Math.max(350, Math.round(currentH + deltaY));
-    window.setSize(newWidth, newHeight);
-    applyProtection(window);
-    const isCompact = newWidth <= 450;
-    event?.sender?.send('window-size-changed', { isCompact, width: newWidth, height: newHeight });
+  ipcMain.on('resize-window', (event, data: { deltaX?: number; deltaY?: number }) => {
+    if (!window || window.isDestroyed()) return;
+    if (!data) return;
+    const deltaX = Number(data.deltaX);
+    const deltaY = Number(data.deltaY);
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+    if (deltaX === 0 && deltaY === 0) return;
+
+    try {
+      const { width: currentW, height: currentH } = window.getBounds();
+      const newWidth = Math.max(320, Math.round(currentW + deltaX));
+      const newHeight = Math.max(350, Math.round(currentH + deltaY));
+      if (Number.isFinite(newWidth) && Number.isFinite(newHeight)) {
+        window.setSize(newWidth, newHeight);
+        applyProtection(window);
+        const isCompact = newWidth <= 450;
+        event?.sender?.send('window-size-changed', { isCompact, width: newWidth, height: newHeight });
+      }
+    } catch (err) {
+      console.error('❌ [MAIN] Error in resize-window handler:', err);
+    }
   });
 
   // Explicitly set window dimensions
