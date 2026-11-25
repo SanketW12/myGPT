@@ -157,8 +157,8 @@ const buildGaSessionUpdate = (instructions: string) => ({
 
 /**
  * Capture primary speaker voice stream with maximum noise filtering and voice isolation.
- * Checks for dedicated loopback devices, tries display media if active, and provides high-grade
- * microphone capture with native hardware echo cancellation, noise suppression, and auto gain control.
+ * Directly activates primary microphone with native hardware echo cancellation,
+ * noise suppression, and auto gain control (zero screen-share picker popups).
  */
 const capturePrimaryAudioStream = async (): Promise<MediaStream> => {
   // 1. Check for dedicated virtual loopback audio devices (e.g., BlackHole, Teams, Soundflower, Loopback)
@@ -175,6 +175,7 @@ const capturePrimaryAudioStream = async (): Promise<MediaStream> => {
         audio: {
           deviceId: { exact: loopbackDevice.deviceId },
           channelCount: 1,
+          sampleRate: SAMPLE_RATE,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
@@ -185,29 +186,8 @@ const capturePrimaryAudioStream = async (): Promise<MediaStream> => {
     console.warn('⚠️ [Realtime] Loopback device check failed:', err);
   }
 
-  // 2. Try getDisplayMedia for system audio if supported
-  try {
-    if (navigator.mediaDevices.getDisplayMedia) {
-      console.log('🔊 [Realtime] Checking display media audio stream...');
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true
-      });
-      const audioTracks = displayStream.getAudioTracks();
-      // Immediately stop video tracks to prevent screen capture
-      displayStream.getVideoTracks().forEach((track) => track.stop());
-
-      if (audioTracks.length > 0) {
-        console.log('🔊 [Realtime] Using system audio stream from getDisplayMedia');
-        return new MediaStream(audioTracks);
-      }
-    }
-  } catch (err) {
-    console.log('ℹ️ [Realtime] getDisplayMedia not used or cancelled, using primary microphone with voice isolation');
-  }
-
-  // 3. Primary Microphone with full voice isolation and noise suppression
-  console.log('🎤 [Realtime] Activating primary microphone with active noise suppression and voice isolation');
+  // 2. Directly capture primary microphone with full voice isolation (instant single-click activation)
+  console.log('🎤 [Realtime] Directly activating primary microphone with voice isolation');
   return await navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
@@ -359,10 +339,16 @@ export const useRealtimeConversation = ({
 
     teardownMedia();
 
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      intentionalCloseRef.current = true;
+    if (ws) {
+      // Detach event listeners so closed sockets never fire into new sessions
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
       try {
-        ws.close();
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close(1000, 'Normal closure');
+        }
       } catch {
         // ignore
       }
@@ -568,7 +554,12 @@ export const useRealtimeConversation = ({
   );
 
   const start = useCallback(async () => {
-    if (wantActiveRef.current || startingRef.current || wsRef.current) return;
+    // If already active or starting, prevent duplicate concurrent starts
+    if (wantActiveRef.current || startingRef.current) return;
+
+    // Reset any lingering previous state/audio cleanly before starting fresh
+    cleanup();
+
     startingRef.current = true;
     intentionalCloseRef.current = false;
     wantActiveRef.current = true;
@@ -742,6 +733,11 @@ export const useRealtimeConversation = ({
 
       ws.onclose = (event) => {
         console.warn('🛑 Realtime WS closed', event.code, event.reason || '(no reason)');
+        // If this event belongs to an old/superseded WebSocket, ignore completely
+        if (wsRef.current !== ws && wsRef.current !== null) {
+          return;
+        }
+
         wsRef.current = null;
         startingRef.current = false;
 
@@ -752,7 +748,10 @@ export const useRealtimeConversation = ({
         setIsActive(false);
         setIsListening(false);
 
-        if (!wasIntentional && wantActiveRef.current) {
+        // 1000 = Normal Closure, 1005 = No Status Received (clean local close). Neither is an error!
+        const isCleanClose = event.code === 1000 || event.code === 1005;
+
+        if (!wasIntentional && !isCleanClose && wantActiveRef.current) {
           wantActiveRef.current = false;
           setStatusText(`Disconnected (${event.code}). Click to restart.`);
         } else {
@@ -771,18 +770,19 @@ export const useRealtimeConversation = ({
 
   const stop = useCallback(() => {
     wantActiveRef.current = false;
+    startingRef.current = false;
     intentionalCloseRef.current = true;
     setStatusText('');
     cleanup();
   }, [cleanup]);
 
   const toggle = useCallback(() => {
-    if (wantActiveRef.current || wsRef.current) {
+    if (wantActiveRef.current || startingRef.current || isActive || isListening || wsRef.current) {
       stop();
     } else {
       void start();
     }
-  }, [start, stop]);
+  }, [isActive, isListening, start, stop]);
 
   useEffect(() => {
     const onVisibility = () => {

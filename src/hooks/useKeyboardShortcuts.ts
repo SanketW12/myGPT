@@ -12,6 +12,7 @@ interface UseKeyboardShortcutsProps {
   onEnterAreaCaptureMode: () => void;
   onStartRealtime: () => void;
   onStopRealtime: () => void;
+  onToggleRealtime?: () => void;
 }
 
 export const useKeyboardShortcuts = ({
@@ -25,7 +26,8 @@ export const useKeyboardShortcuts = ({
   onTakeScreenshot,
   onEnterAreaCaptureMode,
   onStartRealtime,
-  onStopRealtime
+  onStopRealtime,
+  onToggleRealtime
 }: UseKeyboardShortcutsProps) => {
   // Use refs so event handlers always access the freshest state
   const isRecordingRef = useRef(isRecording);
@@ -48,6 +50,9 @@ export const useKeyboardShortcuts = ({
 
   const onStopRealtimeRef = useRef(onStopRealtime);
   onStopRealtimeRef.current = onStopRealtime;
+
+  const onToggleRealtimeRef = useRef(onToggleRealtime);
+  onToggleRealtimeRef.current = onToggleRealtime;
 
   const recordingStartTimeRef = useRef<number>(0);
   const shiftDownWithoutOtherKeyRef = useRef<boolean>(false);
@@ -179,15 +184,17 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      // Realtime: Space toggles dedicated Realtime speaker-audio listening mode ON / OFF.
+      // Realtime: Space toggles dedicated Realtime voice listening mode ON / OFF.
       if (e.code === 'Space' || key === ' ') {
         e.preventDefault();
         if (isInitializingRef.current || isRecordingRef.current) return;
-        if (isRealtimeRef.current) {
-          console.log('⌨️ [RENDERER] Space pressed - Stopping Realtime (restoring normal microphone mode)');
+        if (onToggleRealtimeRef.current) {
+          onToggleRealtimeRef.current();
+        } else if (isRealtimeRef.current) {
+          console.log('⌨️ [RENDERER] Space pressed - Stopping Realtime');
           onStopRealtimeRef.current();
         } else {
-          console.log('⌨️ [RENDERER] Space pressed - Starting Realtime (speaker audio listening)');
+          console.log('⌨️ [RENDERER] Space pressed - Starting Realtime');
           onStartRealtimeRef.current();
         }
         return;
@@ -236,6 +243,7 @@ export const useKeyboardShortcuts = ({
     onEnterAreaCaptureMode,
     onStartRealtime,
     onStopRealtime,
+    onToggleRealtime,
     handleToggleRecording
   ]);
 };

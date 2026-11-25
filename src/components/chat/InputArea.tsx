@@ -18,6 +18,7 @@ interface InputAreaProps {
     realtimeStatus?: string;
     startRealtime: () => void;
     stopRealtime: () => void;
+    toggleRealtime?: () => void;
     isProcessingScreenshot: boolean;
     isAreaCaptureMode: boolean;
     onEnterAreaCaptureMode: () => void;
@@ -40,6 +41,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
     realtimeStatus,
     startRealtime,
     stopRealtime,
+    toggleRealtime,
     isProcessingScreenshot,
     isAreaCaptureMode,
     onEnterAreaCaptureMode
@@ -209,12 +211,12 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
                     {/* Realtime Speaker Listening (Space) Button */}
                     <button
-                        onClick={isRealtime ? stopRealtime : startRealtime}
+                        onClick={toggleRealtime ? toggleRealtime : (isRealtime ? stopRealtime : startRealtime)}
                         className={`undraggable p-2.5 sm:p-3 hover:opacity-80 rounded-lg transition-colors cursor-default ${
-                            isRealtime ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
+                            isRealtime || isListening ? 'bg-green-500 animate-pulse ring-2 ring-green-300' : 'bg-gray-900'
                         }`}
                         style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
-                        title={isRealtime ? 'Stop Realtime (Space or click)' : 'Start Realtime (Space)'}
+                        title={isRealtime || isListening ? 'Stop Realtime (Space or click)' : 'Start Realtime (Space)'}
                     >
                         <Radio size={18} color="white" />
                     </button>
