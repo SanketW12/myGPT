@@ -56,7 +56,8 @@ export default function ChatUI() {
     isListening,
     statusText: realtimeStatus,
     start: startRealtime,
-    stop: stopRealtime
+    stop: stopRealtime,
+    toggle: toggleRealtime
   } = useRealtimeConversation({
     instructions: systemPrompt,
     onUserTranscript: addRealtimeUserMessage,
@@ -93,7 +94,8 @@ export default function ChatUI() {
     onTakeScreenshot: takeScreenshot,
     onEnterAreaCaptureMode: () => setIsAreaCaptureMode(true),
     onStartRealtime: startRealtime,
-    onStopRealtime: stopRealtime
+    onStopRealtime: stopRealtime,
+    onToggleRealtime: toggleRealtime
   });
 
   useEffect(() => {
@@ -186,6 +188,7 @@ export default function ChatUI() {
         realtimeStatus={realtimeStatus}
         startRealtime={startRealtime}
         stopRealtime={stopRealtime}
+        toggleRealtime={toggleRealtime}
         isProcessingScreenshot={isProcessingScreenshot}
         isAreaCaptureMode={isAreaCaptureMode}
         onEnterAreaCaptureMode={() => setIsAreaCaptureMode(true)}
