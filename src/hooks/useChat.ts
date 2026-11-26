@@ -414,6 +414,10 @@ export const useChat = () => {
       if (last?.role === 'user' && !realtimeAssistantActiveRef.current) {
         return [...prev.slice(0, -1), userMessage];
       }
+      // If assistant already started streaming tokens before transcript arrived, insert question before assistant
+      if (last?.role === 'assistant' && realtimeAssistantActiveRef.current) {
+        return [...prev.slice(0, -1), userMessage, last];
+      }
       return [...prev, userMessage];
     });
   }, []);
