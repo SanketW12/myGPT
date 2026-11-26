@@ -36,7 +36,46 @@
     cursor: default !important;
 }
 
-/* Ensure text fields and input controls display the text (I-beam) cursor consistently */
+/* Universally enforce standard arrow cursor across all elements and states */
+*,
+*::before,
+*::after,
+html,
+body,
+#root {
+  cursor: default !important;
+}
+
+*:hover,
+*:active,
+*:focus,
+*:focus-within {
+  cursor: default !important;
+}
+
+/* Ensure WebKit resizers and scrollbar corners also strictly preserve standard arrow cursor */
+::-webkit-resizer,
+::-webkit-scrollbar,
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  cursor: default !important;
+}
+
+.resize-handle,
+[class*="resize"] {
+  cursor: default !important;
+  -webkit-app-region: no-drag;
+}
+
+body.resizing-window,
+body.resizing-window * {
+  cursor: default !important;
+  user-select: none !important;
+}
+
+/* Allow text inputs and textareas to display the text (I-beam) cursor for typing */
 input[type="text"],
 input[type="search"],
 textarea,

@@ -106,13 +106,14 @@ const isMeaningfulPrimarySpeech = (text: string): boolean => {
 const buildRealtimeInstructions = (instructions: string) => {
   return `${instructions.trim()}
 
-### 🎯 SPEAKER OUTPUT AUDIO ONLY (NO INPUT MICROPHONE):
-- You are monitoring live system/speaker output audio from the meeting / interviewer.
-- Strictly ignore any input user microphone sound.
-- Only respond when the speaker / interviewer has asked a question, prompt, or technical statement.
-- If the incoming audio is just silence, background noise, or filler, do not generate an answer.
-- Reply with TEXT ONLY (no audio output).
-- Follow the mandatory response structure: lead with the Direct Answer, followed by a concrete Real-World Example or clean code from 5 years of production experience.`;
+### 🎯 LIVE INTERVIEW DIRECT-ANSWER RULES:
+- When the interviewer asks a question, hit the EXACT TRIGGERING POINT immediately with the DIRECT ANSWER in simple, humanized words.
+- NO "Approach" section or preamble. Start directly with the answer.
+- Speak naturally like an experienced, articulate engineer in a real interview (NOT robotic, NOT an academic textbook).
+- First sentence must deliver the direct answer to what they asked in simple, plain English.
+- Follow up with 1 quick real-world production example or clean code.
+- Keep the entire answer compact, clear, and punchy (2–4 conversational sentences).
+- Reply with TEXT ONLY (no audio output).`;
 };
 
 /**

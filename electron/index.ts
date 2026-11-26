@@ -165,7 +165,7 @@ async function createWindow() {
     y: 0, // At the very top of the screen
     frame: false,
     show: false,
-    resizable: true, // Allow user to resize and reduce the window size
+    resizable: false, // Disables native OS resize borders so macOS WindowServer never shows the reducer arrow cursor
     minWidth: 320,
     minHeight: 350,
     fullscreenable: false, // Prevent window from entering or attaching to full-screen spaces
