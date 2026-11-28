@@ -162,16 +162,16 @@ async function createWindow() {
     width: 700,
     height: 700,
     x: initialX, // Position around the right-center of screen
-    y: 10, // At the top of the screen
+    y: 0, // At the very top of the screen
     frame: false,
     show: false,
-    resizable: true, // Allow user to resize and reduce the window size
+    resizable: false, // Disables native OS resize borders so macOS WindowServer never shows the double arrow cursor at window edges; resizing is handled programmatically
     minWidth: 320,
     minHeight: 350,
     fullscreenable: false, // Prevent window from entering or attaching to full-screen spaces
     transparent: true,
     backgroundColor: '#00000000',
-    alwaysOnTop: false, // Managed below to avoid 'screen-saver' level forcing
+    alwaysOnTop: false, // Managed below with 'screen-saver' level
     hasShadow: false, // Explicitly false: prevents macOS drop-shadow from leaking into screen share
     enableLargerThanScreen: true,
     roundedCorners: true,
@@ -204,12 +204,16 @@ async function createWindow() {
   // 1. Enforce content protection immediately on creation (NSWindowSharingNone at OS level)
   applyProtection(window);
 
-  // 2. Set window level to 'floating'
-  // visibleOnFullScreen: false ensures macOS NEVER forcefully pulls this window onto a full-screen meeting or screen share.
+  // 2. Set window level to 'screen-saver' so it floats above the macOS top menu bar, status bar, and all windows.
+  // visibleOnFullScreen: true ensures the window remains visible across desktop spaces and above full-screen windows.
   // skipTransformProcessType: true prevents macOS from altering process type and clearing NSWindowSharingNone.
   if (isAlwaysOnTop) {
-    window.setAlwaysOnTop(true, 'floating');
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false, skipTransformProcessType: true });
+    if (process.platform === 'darwin') {
+      window.setAlwaysOnTop(true, 'screen-saver', 1);
+    } else {
+      window.setAlwaysOnTop(true);
+    }
+    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   } else {
     window.setAlwaysOnTop(false);
     window.setVisibleOnAllWorkspaces(false);
@@ -385,8 +389,12 @@ async function createWindow() {
     isAlwaysOnTop = !isAlwaysOnTop;
     console.log(`📌 [MAIN] toggle-always-on-top: ${isAlwaysOnTop}`);
     if (isAlwaysOnTop) {
-      window.setAlwaysOnTop(true, 'floating');
-      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false, skipTransformProcessType: true });
+      if (process.platform === 'darwin') {
+        window.setAlwaysOnTop(true, 'screen-saver', 1);
+      } else {
+        window.setAlwaysOnTop(true);
+      }
+      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
     } else {
       window.setAlwaysOnTop(false);
       window.setVisibleOnAllWorkspaces(false);
@@ -408,10 +416,30 @@ async function createWindow() {
   });
 
   // Drag window via cursor movement
-  ipcMain.on('drag-window', (_event, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
-    if (!window) return;
-    const { x, y } = window.getBounds();
-    window.setPosition(Math.round(x + deltaX), Math.round(y + deltaY));
+  ipcMain.on('drag-window', (_event, data: { deltaX?: number; deltaY?: number }) => {
+    if (!window || window.isDestroyed()) return;
+    if (!data) return;
+    const deltaX = Number(data.deltaX);
+    const deltaY = Number(data.deltaY);
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+    if (deltaX === 0 && deltaY === 0) return;
+
+    try {
+      const [currentX, currentY] = window.getPosition();
+      if (!Number.isFinite(currentX) || !Number.isFinite(currentY)) return;
+
+      const { height } = window.getBounds();
+      const newX = Math.round(currentX + deltaX);
+      // Allow window to be dragged above the top menu bar / top of screen freely,
+      // keeping at least 40px reachable so it never gets lost off-screen.
+      const newY = Math.max(-height + 40, Math.round(currentY + deltaY));
+
+      if (Number.isFinite(newX) && Number.isFinite(newY)) {
+        window.setPosition(newX, newY);
+      }
+    } catch (err) {
+      console.error('❌ [MAIN] Error in drag-window handler:', err);
+    }
   });
 
   // Resize window by delta (e.g. from corner resize grip)
@@ -463,13 +491,21 @@ async function createWindow() {
     console.log(`🖥️ [MAIN] set-capture-mode: ${isCaptureMode} (Window size preserved)`);
     try {
       if (isCaptureMode) {
-        // Keep window same size, elevate to 'floating'
-        window.setAlwaysOnTop(true, 'floating');
+        // Keep window same size, elevate to 'screen-saver'
+        if (process.platform === 'darwin') {
+          window.setAlwaysOnTop(true, 'screen-saver', 1);
+        } else {
+          window.setAlwaysOnTop(true);
+        }
       } else {
         // Restore user's configured alwaysOnTop state
         if (isAlwaysOnTop) {
-          window.setAlwaysOnTop(true, 'floating');
-          window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false, skipTransformProcessType: true });
+          if (process.platform === 'darwin') {
+            window.setAlwaysOnTop(true, 'screen-saver', 1);
+          } else {
+            window.setAlwaysOnTop(true);
+          }
+          window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
         } else {
           window.setAlwaysOnTop(false);
           window.setVisibleOnAllWorkspaces(false);

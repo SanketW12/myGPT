@@ -101,29 +101,52 @@ export default function ChatUI() {
   }, [messages, loading]);
 
   // Handler for cursor corner-drag resizing (reduce or expand window)
-  const handleCornerResizeStart = (e: React.MouseEvent) => {
+  const handleCornerResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    let prevX = e.screenX;
-    let prevY = e.screenY;
+    let prevX = Number.isFinite(e.screenX) ? e.screenX : e.clientX;
+    let prevY = Number.isFinite(e.screenY) ? e.screenY : e.clientY;
+    if (!Number.isFinite(prevX) || !Number.isFinite(prevY)) return;
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.screenX - prevX;
-      const deltaY = moveEvent.screenY - prevY;
-      prevX = moveEvent.screenX;
-      prevY = moveEvent.screenY;
-      if (deltaX !== 0 || deltaY !== 0) {
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch (_) { }
+
+    document.body.classList.add('resizing-window');
+    document.body.style.cursor = 'default';
+    document.documentElement.style.cursor = 'default';
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      const currentX = Number.isFinite(moveEvent.screenX) ? moveEvent.screenX : moveEvent.clientX;
+      const currentY = Number.isFinite(moveEvent.screenY) ? moveEvent.screenY : moveEvent.clientY;
+      if (!Number.isFinite(currentX) || !Number.isFinite(currentY)) return;
+
+      const deltaX = currentX - prevX;
+      const deltaY = currentY - prevY;
+      prevX = currentX;
+      prevY = currentY;
+      if (Number.isFinite(deltaX) && Number.isFinite(deltaY) && (deltaX !== 0 || deltaY !== 0)) {
         window?.Main?.resizeWindow?.(deltaX, deltaY);
       }
     };
 
-    const handleMouseUp = () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      try {
+        target.releasePointerCapture(upEvent.pointerId);
+      } catch (_) { }
+      document.body.classList.remove('resizing-window');
+      document.body.style.cursor = 'default';
+      document.documentElement.style.cursor = 'default';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
   };
 
   return (
@@ -187,13 +210,14 @@ export default function ChatUI() {
 
       {/* Interactive Bottom-Right Corner Resize Handle */}
       <div
-        className="undraggable absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="Drag corner with cursor to reduce or expand window size"
-        onMouseDown={handleCornerResizeStart}
+        className="undraggable resize-handle absolute bottom-0 right-0 w-6 h-6 cursor-default !cursor-default z-50 flex items-end justify-end p-1 text-gray-500 hover:text-white transition-colors select-none"
+        style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as React.CSSProperties}
+        title="Drag corner to reduce or expand window size"
+        onPointerDown={handleCornerResizeStart}
       >
         <svg
-          className="w-3 h-3 opacity-60 hover:opacity-100"
+          className="w-3.5 h-3.5 opacity-60 hover:opacity-100 pointer-events-none cursor-default"
+          style={{ cursor: 'default' }}
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"

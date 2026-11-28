@@ -5,7 +5,6 @@
 .draggable {
     -webkit-user-select: none;
     user-select: none;
-    -webkit-app-region: drag;
   }
 
 .undraggable {
@@ -27,19 +26,130 @@
   }
 }
 
-.selecto-selection {
+.selecto-selection,
+.selecto-selection * {
     background: rgba(59, 130, 246, 0.2) !important;
     border: 2px solid #3b82f6 !important;
     position: absolute;
     z-index: 10001;
     pointer-events: none;
+    cursor: default !important;
 }
 
-/* Ensure text fields and input controls display the text (I-beam) cursor consistently */
+/* Universally enforce standard normal single arrow cursor across ALL elements, inputs, typing, resizing, dragging, buttons, and states */
+*,
+*::before,
+*::after,
+html,
+body,
+#root,
+input,
+input:focus,
+input:active,
 input[type="text"],
 input[type="search"],
+input[type="email"],
+input[type="password"],
 textarea,
-.cursor-text {
-  cursor: text !important;
+textarea:focus,
+textarea:active,
+[contenteditable="true"],
+.cursor-text,
+button,
+button:hover,
+button:active,
+button:focus,
+button:focus-visible,
+button *,
+a,
+a:hover,
+a:active,
+a:focus,
+a *,
+select,
+svg,
+path,
+div,
+span,
+[role="button"],
+[role="button"]:hover,
+[role="button"]:active,
+.cursor-pointer,
+.cursor-pointer:hover,
+.cursor-pointer:active,
+.cursor-pointer *,
+.cursor-not-allowed,
+.cursor-not-allowed:hover,
+.cursor-not-allowed:active,
+.cursor-not-allowed *,
+.cursor-nwse-resize,
+.cursor-nesw-resize,
+.cursor-ew-resize,
+.cursor-ns-resize,
+.cursor-col-resize,
+.cursor-row-resize,
+.cursor-n-resize,
+.cursor-e-resize,
+.cursor-s-resize,
+.cursor-w-resize,
+.cursor-ne-resize,
+.cursor-nw-resize,
+.cursor-se-resize,
+.cursor-sw-resize,
+[class*="resize"],
+[class*="resizing"],
+.resize-handle,
+.resize-handle:hover,
+.resize-handle:active,
+body.resizing-window,
+body.resizing-window *,
+body.dragging-window,
+body.dragging-window *,
+::-webkit-resizer,
+::-webkit-scrollbar-corner {
+  cursor: default !important;
+  -webkit-app-region: no-drag !important;
+}
+
+*:hover,
+*:active,
+*:focus,
+*:focus-within {
+  cursor: default !important;
+}
+
+/* Ensure WebKit resizers and scrollbar corners also strictly preserve standard arrow cursor */
+::-webkit-resizer,
+::-webkit-scrollbar,
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  cursor: default !important;
+}
+
+.resize-handle,
+[class*="resize"],
+[class*="resize"]:hover,
+[class*="resize"]:active {
+  cursor: default !important;
   -webkit-app-region: no-drag;
+}
+
+body.resizing-window,
+body.resizing-window *,
+body.resizing-window button,
+body.resizing-window [class*="resize"] {
+  cursor: default !important;
+  user-select: none !important;
+}
+
+/* Markdown preview overrides to prevent hand cursor on links, summaries, and buttons */
+.wmde-markdown details summary,
+.wmde-markdown .task-list-item.enabled label,
+.wmde-markdown pre .copied,
+.wmde-markdown pre:hover .copied,
+.wmde-markdown a,
+.wmde-markdown a:hover {
+  cursor: default !important;
 }
